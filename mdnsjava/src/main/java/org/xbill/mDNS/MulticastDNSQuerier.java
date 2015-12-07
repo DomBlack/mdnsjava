@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xbill.DNS.ExtendedResolver;
 import org.xbill.DNS.Flags;
 import org.xbill.DNS.Header;
@@ -25,29 +27,31 @@ import org.xbill.DNS.TSIG;
  * The MulticastDNSQuerier is a responder that integrates multicast and unicast DNS in accordance to the
  * mDNS specification [RFC 6762]. DNS queries for multicast domains are send as multicast DNS requests,
  * while unicast domain queries are sent as unicast DNS requests.
- * 
+ *
  * @author posicks
  */
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class MulticastDNSQuerier implements Querier
 {
+	private static final Logger log = LoggerFactory.getLogger(MulticastDNSQuerier.class);
+
     protected static class Resolution implements ResolverListener
     {
         private MulticastDNSQuerier querier = null;
-        
+
         private Message query = null;
-        
+
         private ResolverListener listener = null;
-        
+
         private final LinkedList responses = new LinkedList();
-        
+
         private int requestsSent;
-        
+
         private final List requestIDs = new ArrayList();
-        
+
         private boolean mdnsVerbose = false;
-        
-        
+
+
         public Resolution(final MulticastDNSQuerier querier, final Message query, final ResolverListener listener)
         {
             this.querier = querier;
@@ -55,8 +59,8 @@ public class MulticastDNSQuerier implements Querier
             this.listener = listener;
             mdnsVerbose = Options.check("mdns_verbose");
         }
-        
-        
+
+
         public Message getResponse(final int responseWait, final int timeout)
         throws IOException
         {
@@ -65,14 +69,14 @@ public class MulticastDNSQuerier implements Querier
             try
             {
                 Message[] messages = getResults(true, timeout);
-                
+
                 boolean found = false;
                 if ((messages != null) && (messages.length > 0))
                 {
                     header.setRcode(Rcode.NOERROR);
                     header.setOpcode(Opcode.QUERY);
                     header.setFlag(Flags.QR);
-                    
+
                     for (Message message : messages)
                     {
                         Header h = message.getHeader();
@@ -82,12 +86,12 @@ public class MulticastDNSQuerier implements Querier
                             {
                                 header.setFlag(Flags.AA);
                             }
-                            
+
                             if (h.getFlag(Flags.AD))
                             {
                                 header.setFlag(Flags.AD);
                             }
-                            
+
                             for (int section : new int[] {Section.ANSWER,
                                                           Section.ADDITIONAL,
                                                           Section.AUTHORITY})
@@ -108,12 +112,12 @@ public class MulticastDNSQuerier implements Querier
                         }
                     }
                 }
-                
+
                 if (!found)
                 {
                     header.setRcode(Rcode.NXDOMAIN);
                 }
-                
+
                 return response;
             } catch (Exception e)
             {
@@ -128,8 +132,8 @@ public class MulticastDNSQuerier implements Querier
                 }
             }
         }
-        
-        
+
+
         public Message[] getResults(final boolean waitForResults, final int timeoutValue)
         throws Exception
         {
@@ -154,12 +158,12 @@ public class MulticastDNSQuerier implements Querier
                     }
                 }
             }
-            
+
             if (responses.size() > 0)
             {
                 LinkedList messages = new LinkedList();
                 LinkedList exceptions = new LinkedList();
-                
+
                 for (Object o : responses)
                 {
                     Response response = (Response) o;
@@ -171,7 +175,7 @@ public class MulticastDNSQuerier implements Querier
                         messages.add(response.getMessage());
                     }
                 }
-                
+
                 if (messages.size() > 0)
                 {
                     return (Message[]) messages.toArray(new Message[messages.size()]);
@@ -180,25 +184,25 @@ public class MulticastDNSQuerier implements Querier
                     throw (Exception) exceptions.get(0);
                 }
             }
-            
+
             return null;
         }
-        
-        
+
+
         public void handleException(final Object id, final Exception exception)
         {
             if ((requestIDs.size() != 0) && (!requestIDs.contains(id) || (this != id) || !equals(id)))
             {
                 if (mdnsVerbose)
                 {
-                    System.out.println("!!!!! Exception Received for ID - " + id + ".");
+                    log.info("!!!!! Exception Received for ID - " + id + ".");
                 }
                 synchronized (responses)
                 {
                     responses.add(new Response(id, exception));
                     responses.notifyAll();
                 }
-                
+
                 if (listener != null)
                 {
                     listener.handleException(this, exception);
@@ -210,18 +214,17 @@ public class MulticastDNSQuerier implements Querier
                 {
                     msg += "[Request ID does not match Response ID - " + id + " ] ";
                 }
-                System.err.println(msg);
-                exception.printStackTrace(System.err);
+                log.error(msg, exception);
             }
         }
-        
-        
+
+
         public boolean hasResults()
         {
             return responses.size() >= requestsSent;
         }
-        
-        
+
+
         public boolean inError()
         {
             for (Object o : responses)
@@ -232,32 +235,32 @@ public class MulticastDNSQuerier implements Querier
                     return false;
                 }
             }
-            
+
             return true;
         }
-        
-        
+
+
         public void receiveMessage(final Object id, final Message message)
         {
             if ((requestIDs.size() == 0) || requestIDs.contains(id) || (this == id) || equals(id) || MulticastDNSUtils.answersAny(query, message))
             {
                 if (mdnsVerbose)
                 {
-                    System.out.println("!!!! Message Received - " + id + " - " + query.getQuestion());
+                    log.info("!!!! Message Received - " + id + " - " + query.getQuestion());
                 }
                 synchronized (responses)
                 {
                     responses.add(new Response(this, message));
                     responses.notifyAll();
                 }
-                
+
                 if (listener != null)
                 {
                     listener.receiveMessage(this, message);
                 }
             } else if (mdnsVerbose)
             {
-                
+
                 String msg = "!!!!! Message Disgarded ";
                 if ((requestIDs.size() != 0) && (!requestIDs.contains(id) || (this != id) || !equals(id)))
                 {
@@ -267,12 +270,11 @@ public class MulticastDNSQuerier implements Querier
                 {
                     msg += "[Response does not answer Query]";
                 }
-                System.err.println(msg);
-                System.err.println(message);
+                log.error(msg + " : " + message);
             }
         }
-        
-        
+
+
         public Object start()
         {
             requestsSent = 0;
@@ -288,7 +290,7 @@ public class MulticastDNSQuerier implements Querier
                     requestsSent++ ;
                 }
             }
-            
+
             if (MulticastDNSService.hasMulticastDomains(query) && (querier.multicastResponders != null) && (querier.multicastResponders.length > 0))
             {
                 for (Querier responder : querier.multicastResponders)
@@ -298,95 +300,95 @@ public class MulticastDNSQuerier implements Querier
                     requestsSent++ ;
                 }
             }
-            
+
             if (!unicast && !multicast)
             {
-                System.err.println("Could not execute query, no Unicast Resolvers or Multicast Queriers were available\n" + query);
+                log.error("Could not execute query, no Unicast Resolvers or Multicast Queriers were available\n" + query);
             }
             return this;
         }
     }
-    
-    
+
+
     protected static class Response
     {
         private Object id = null;
-        
+
         private Message message = null;
-        
+
         private Exception exception = null;
-        
-        
+
+
         protected Response(final Object id, final Exception exception)
         {
             this.id = id;
             this.exception = exception;
         }
-        
-        
+
+
         protected Response(final Object id, final Message message)
         {
             this.id = id;
             this.message = message;
         }
-        
-        
+
+
         public Exception getException()
         {
             return exception;
         }
-        
-        
+
+
         public Object getID()
         {
             return id;
         }
-        
-        
+
+
         public Message getMessage()
         {
             return message;
         }
-        
-        
+
+
         public boolean inError()
         {
             return exception != null;
         }
     }
-    
+
     protected ListenerProcessor<ResolverListener> resolverListenerProcessor = new ListenerProcessor<ResolverListener>(ResolverListener.class);
-    
+
     protected ResolverListener resolverListenerDispatcher = resolverListenerProcessor.getDispatcher();
-    
+
     protected boolean ipv4 = false;
-    
+
     protected boolean ipv6 = false;
-    
+
     protected Querier[] multicastResponders;
-    
+
     protected Resolver[] unicastResolvers;
-    
+
     protected ResolverListener resolverDispatch = new ResolverListener()
     {
         public void handleException(final Object id, final Exception e)
         {
             resolverListenerDispatcher.handleException(id, e);
         }
-        
-        
+
+
         public void receiveMessage(final Object id, final Message m)
         {
             resolverListenerDispatcher.receiveMessage(id, m);
         }
     };
-    
+
     private final boolean mdnsVerbose;
-    
-    
+
+
     /**
      * Constructs a new IPv4 mDNS Querier using the default Unicast DNS servers for the system.
-     * 
+     *
      * @throws UnknownHostException
      */
     public MulticastDNSQuerier()
@@ -394,11 +396,11 @@ public class MulticastDNSQuerier implements Querier
     {
         this(true, false, new Resolver[] {new ExtendedResolver()});
     }
-    
-    
+
+
     /**
      * Constructs a new mDNS Querier using the default Unicast DNS servers for the system.
-     * 
+     *
      * @param ipv6 if IPv6 should be enabled.
      * @throws UnknownHostException
      */
@@ -407,11 +409,11 @@ public class MulticastDNSQuerier implements Querier
     {
         this(ipv4, ipv6, (Resolver[]) null);
     }
-    
-    
+
+
     /**
      * Constructs a new mDNS Querier using the provided Unicast DNS Resolver.
-     * 
+     *
      * @param ipv6 if IPv6 should be enabled.
      * @param unicastResolver The Unicast DNS Resolver
      * @throws UnknownHostException
@@ -421,11 +423,11 @@ public class MulticastDNSQuerier implements Querier
     {
         this(ipv4, ipv6, new Resolver[] {unicastResolver});
     }
-    
-    
+
+
     /**
      * Constructs a new mDNS Querier using the provided Unicast DNS Resolvers.
-     * 
+     *
      * @param ipv6 if IPv6 should be enabled.
      * @param unicastResolvers The Unicast DNS Resolvers
      * @throws UnknownHostException
@@ -434,7 +436,7 @@ public class MulticastDNSQuerier implements Querier
     throws IOException
     {
         mdnsVerbose = Options.check("mdns_verbose");
-        
+
         if ((unicastResolvers == null) || (unicastResolvers.length == 0))
         {
             this.unicastResolvers = new Resolver[] {new ExtendedResolver()};
@@ -442,13 +444,13 @@ public class MulticastDNSQuerier implements Querier
         {
             this.unicastResolvers = unicastResolvers;
         }
-        
+
         Querier ipv4Responder = null;
         Querier ipv6Responder = null;
-        
+
         IOException ipv4_exception = null;
         IOException ipv6_exception = null;
-        
+
         if (ipv4)
         {
             try
@@ -461,12 +463,11 @@ public class MulticastDNSQuerier implements Querier
                 ipv4_exception = e;
                 if (mdnsVerbose)
                 {
-                    System.err.println("Error constructing IPv4 mDNS Responder - " + e.getMessage());
-                    e.printStackTrace(System.err);
+                    log.error("Error constructing IPv4 mDNS Responder", e);
                 }
             }
         }
-        
+
         if (ipv6)
         {
             try
@@ -479,12 +480,11 @@ public class MulticastDNSQuerier implements Querier
                 ipv6_exception = e;
                 if (mdnsVerbose)
                 {
-                    System.err.println("Error constructing IPv6 mDNS Responder - " + e.getMessage());
-                    e.printStackTrace(System.err);
+                    log.error("Error constructing IPv6 mDNS Responder", e);
                 }
             }
         }
-        
+
         if ((ipv4Responder != null) && (ipv6Responder != null))
         {
             multicastResponders = new Querier[] {ipv4Responder,
@@ -510,8 +510,8 @@ public class MulticastDNSQuerier implements Querier
             }
         }
     }
-    
-    
+
+
     /**
      * {@inheritDoc}
      */
@@ -531,7 +531,7 @@ public class MulticastDNSQuerier implements Querier
                 ex = e;
             }
         }
-        
+
         for (Resolver resolver : unicastResolvers)
         {
             resolver.sendAsync(message, new ResolverListener()
@@ -540,22 +540,22 @@ public class MulticastDNSQuerier implements Querier
                 {
                     resolverListenerDispatcher.handleException(id, e);
                 }
-                
-                
+
+
                 public void receiveMessage(final Object id, final Message m)
                 {
                     resolverListenerDispatcher.receiveMessage(id, m);
                 }
             });
         }
-        
+
         if (!success && (ex != null))
         {
             throw ex;
         }
     }
-    
-    
+
+
     public void close()
     throws IOException
     {
@@ -568,14 +568,13 @@ public class MulticastDNSQuerier implements Querier
             {
                 if (mdnsVerbose)
                 {
-                    System.err.println("Error closing Responder: " + e.getMessage());
-                    e.printStackTrace(System.err);
+                    log.error("Error closing Responder", e);
                 }
             }
         }
     }
-    
-    
+
+
     /**
      * {@inheritDoc}
      */
@@ -595,14 +594,14 @@ public class MulticastDNSQuerier implements Querier
             return new Name[0];
         }
     }
-    
-    
+
+
     public Resolver[] getUnicastResolvers()
     {
         return unicastResolvers;
     }
-    
-    
+
+
     /**
      * {@inheritDoc}
      */
@@ -610,8 +609,8 @@ public class MulticastDNSQuerier implements Querier
     {
         return ipv4;
     }
-    
-    
+
+
     /**
      * {@inheritDoc}
      */
@@ -619,8 +618,8 @@ public class MulticastDNSQuerier implements Querier
     {
         return ipv6;
     }
-    
-    
+
+
     /**
      * {@inheritDoc}
      */
@@ -633,22 +632,22 @@ public class MulticastDNSQuerier implements Querier
                 return false;
             }
         }
-        
+
         return true;
     }
-    
-    
+
+
     public ResolverListener registerListener(final ResolverListener listener)
     {
         for (Querier querier : multicastResponders)
         {
             querier.registerListener(listener);
         }
-        
+
         return listener;
     }
-    
-    
+
+
     /**
      * {@inheritDoc}
      */
@@ -659,8 +658,8 @@ public class MulticastDNSQuerier implements Querier
         res.start();
         return res.getResponse(DEFAULT_RESPONSE_WAIT_TIME, DEFAULT_TIMEOUT);
     }
-    
-    
+
+
     /**
      * {@inheritDoc}
      */
@@ -670,8 +669,8 @@ public class MulticastDNSQuerier implements Querier
         res.start();
         return res;
     }
-    
-    
+
+
     /**
      * {@inheritDoc}
      */
@@ -681,14 +680,14 @@ public class MulticastDNSQuerier implements Querier
         {
             querier.setEDNS(level);
         }
-        
+
         for (Resolver resolver : unicastResolvers)
         {
             resolver.setEDNS(level);
         }
     }
-    
-    
+
+
     /**
      * {@inheritDoc}
      */
@@ -698,14 +697,14 @@ public class MulticastDNSQuerier implements Querier
         {
             querier.setEDNS(level, payloadSize, flags, options);
         }
-        
+
         for (Resolver resolver : unicastResolvers)
         {
             resolver.setEDNS(level, payloadSize, flags, options);
         }
     }
-    
-    
+
+
     /**
      * {@inheritDoc}
      */
@@ -715,14 +714,14 @@ public class MulticastDNSQuerier implements Querier
         {
             querier.setIgnoreTruncation(flag);
         }
-        
+
         for (Resolver resolver : unicastResolvers)
         {
             resolver.setIgnoreTruncation(flag);
         }
     }
-    
-    
+
+
     /**
      * {@inheritDoc}
      */
@@ -733,8 +732,8 @@ public class MulticastDNSQuerier implements Querier
             querier.setPort(port);
         }
     }
-    
-    
+
+
     /**
      * {@inheritDoc}
      */
@@ -745,8 +744,8 @@ public class MulticastDNSQuerier implements Querier
             querier.setTimeout(secs);
         }
     }
-    
-    
+
+
     /**
      * {@inheritDoc}
      */
@@ -757,8 +756,8 @@ public class MulticastDNSQuerier implements Querier
             querier.setTimeout(secs, msecs);
         }
     }
-    
-    
+
+
     /**
      * {@inheritDoc}
      */
@@ -769,8 +768,8 @@ public class MulticastDNSQuerier implements Querier
             resolver.setTCP(flag);
         }
     }
-    
-    
+
+
     /**
      * {@inheritDoc}
      */
@@ -780,14 +779,14 @@ public class MulticastDNSQuerier implements Querier
         {
             querier.setTimeout(secs);
         }
-        
+
         for (Resolver resolver : unicastResolvers)
         {
             resolver.setTimeout(secs);
         }
     }
-    
-    
+
+
     /**
      * {@inheritDoc}
      */
@@ -797,14 +796,14 @@ public class MulticastDNSQuerier implements Querier
         {
             querier.setTimeout(secs, msecs);
         }
-        
+
         for (Resolver resolver : unicastResolvers)
         {
             resolver.setTimeout(secs, msecs);
         }
     }
-    
-    
+
+
     /**
      * {@inheritDoc}
      */
@@ -814,21 +813,21 @@ public class MulticastDNSQuerier implements Querier
         {
             querier.setTSIGKey(key);
         }
-        
+
         for (Resolver resolver : unicastResolvers)
         {
             resolver.setTSIGKey(key);
         }
     }
-    
-    
+
+
     public ResolverListener unregisterListener(final ResolverListener listener)
     {
         for (Querier querier : multicastResponders)
         {
             querier.unregisterListener(listener);
         }
-        
+
         return listener;
     }
 }

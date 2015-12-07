@@ -1,5 +1,8 @@
 package org.xbill.mDNS;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -12,48 +15,50 @@ import java.util.Enumeration;
 
 public class DatagramProcessor extends NetworkProcessor
 {
+	private static final Logger log = LoggerFactory.getLogger(DatagramProcessor.class);
+
     // The default UDP datagram payload size
     protected int maxPayloadSize = 512;
-    
+
     protected boolean isMulticast = false;
-    
+
     protected DatagramSocket socket;
-    
+
     private long lastPacket;
-    
-    
+
+
     public DatagramProcessor(final InetAddress ifaceAddress, final InetAddress address, final int port, final PacketListener listener)
     throws IOException
     {
         super(ifaceAddress, address, port, listener);
-        
+
         if (address != null)
         {
             isMulticast = address.isMulticastAddress();
         }
-        
+
         NetworkInterface netIface = null;
         if (isMulticast)
         {
             MulticastSocket socket = new MulticastSocket(port);
-            
+
             // Set the IP TTL to 255, per the mDNS specification [RFC 6762].
             socket.setLoopbackMode(true);
             socket.setReuseAddress(true);
             socket.setTimeToLive(255);
-            
+
             socket.setInterface(ifaceAddress);
-            
+
             socket.joinGroup(address);
-            
+
             this.socket = socket;
         } else
         {
             socket = new DatagramSocket(new InetSocketAddress(ifaceAddress, port));
         }
-        
+
         netIface = NetworkInterface.getByInetAddress(ifaceAddress);
-        
+
         // Determine maximum mDNS Payload size
         if (netIface == null)
         {
@@ -67,7 +72,7 @@ public class DatagramProcessor extends NetworkProcessor
                 }
             }
         }
-        
+
         if (netIface != null)
         {
             try
@@ -76,10 +81,10 @@ public class DatagramProcessor extends NetworkProcessor
             } catch (SocketException e)
             {
                 netIface = null;
-                System.err.println("Error getting MTU from Network Interface " + netIface + ".");
+                log.error("Error getting MTU from Network Interface " + netIface + ".");
             }
         }
-        
+
         if (netIface == null)
         {
             Enumeration<NetworkInterface> ifaces = NetworkInterface.getNetworkInterfaces();
@@ -98,17 +103,17 @@ public class DatagramProcessor extends NetworkProcessor
             }
             mtu = smallestMtu;
         }
-        
+
         maxPayloadSize = mtu - 40 /* IPv6 Header Size */- 8 /* UDP Header */;
     }
-    
-    
+
+
     @Override
     public void close()
     throws IOException
     {
         super.close();
-        
+
         if (isMulticast)
         {
             try
@@ -118,42 +123,40 @@ public class DatagramProcessor extends NetworkProcessor
             {
                 if (verboseLogging)
                 {
-                    System.err.println("Security issue leaving Multicast Group \"" + address.getAddress() + "\" - " + e.getMessage());
-                    e.printStackTrace(System.err);
+                    log.error("Security issue leaving Multicast Group \"" + address.getAddress() + "\"", e);
                 }
             } catch (Exception e)
             {
                 if (verboseLogging)
                 {
-                    System.err.println("Error leaving Multicast Group \"" + address.getAddress() + "\" - " + e.getMessage());
-                    e.printStackTrace(System.err);
+                    log.error("Error leaving Multicast Group \"" + address.getAddress() + "\"", e);
                 }
             }
         }
-        
+
         socket.close();
     }
-    
-    
+
+
     public int getMaxPayloadSize()
     {
         return maxPayloadSize;
     }
-    
-    
+
+
     public boolean isMulticast()
     {
         return isMulticast;
     }
-    
-    
+
+
     @Override
     public boolean isOperational()
     {
         return super.isOperational() && socket.isBound() && !socket.isClosed() && (lastPacket <= (System.currentTimeMillis() + 120000));
     }
-    
-    
+
+
     public void run()
     {
         lastPacket = System.currentTimeMillis();
@@ -170,27 +173,25 @@ public class DatagramProcessor extends NetworkProcessor
                     Packet packet = new Packet(datagram);
                     if (verboseLogging)
                     {
-                        System.err.println("-----> Received packet " + packet.id + " <-----");
+                        log.error("-----> Received packet " + packet.id + " <-----");
                         packet.timer.start();
                     }
                     processorExecutor.execute(new PacketRunner(listener, packet));
                 }
             } catch (SecurityException e)
             {
-                System.err.println("Security issue receiving data from \"" + address + "\" - " + e.getMessage());
-                e.printStackTrace(System.err);
+                log.error("Security issue receiving data from \"" + address + "\"", e);
             } catch (Exception e)
             {
                 if (!exit)
                 {
-                    System.err.println("Error receiving data from \"" + address + "\" - " + e.getMessage());
-                    e.printStackTrace(System.err);
+                    log.error("Error receiving data from \"" + address + "\"", e);
                 }
             }
         }
     }
-    
-    
+
+
     @Override
     public void send(final byte[] data)
     throws IOException
@@ -199,9 +200,9 @@ public class DatagramProcessor extends NetworkProcessor
         {
             return;
         }
-        
+
         DatagramPacket packet = new DatagramPacket(data, data.length, address, port);
-        
+
         try
         {
             if (isMulticast)
@@ -214,30 +215,29 @@ public class DatagramProcessor extends NetworkProcessor
         {
             if (verboseLogging)
             {
-                System.err.println("Error sending datagram to \"" + packet.getSocketAddress() + "\".");
-                e.printStackTrace(System.err);
+                log.error("Error sending datagram to \"" + packet.getSocketAddress() + "\".", e);
             }
-            
+
             if ("No route to host".equalsIgnoreCase(e.getMessage()))
             {
                 close();
             }
-            
+
             IOException ioe = new IOException("Exception \"" + e.getMessage() + "\" occured while sending datagram to \"" + packet.getSocketAddress() + "\".", e);
             ioe.setStackTrace(e.getStackTrace());
             throw ioe;
         }
     }
-    
-    
+
+
     @Override
     public void setAddress(final InetAddress address)
     {
         super.setAddress(address);
         isMulticast = address.isMulticastAddress();
     }
-    
-    
+
+
     @Override
     protected void finalize()
     throws Throwable

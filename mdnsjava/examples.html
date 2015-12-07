@@ -1,90 +1,400 @@
 <html>
 <head>
-<title>dnsjava examples</title>
+    <title>mdnsjava examples</title>
 </head>
 
 <body bgcolor="white">
-
-<h1 align="center">dnsjava examples</h1>
-
-All of these examples are code fragments.  Code using these fragments should
-check exceptions when appropriate, and should:
-
-<pre><code>import org.xbill.DNS.*;</code></pre>
-
-<p><b>Get the IP address associated with a name:</b></p>
-<pre><code>
-InetAddress addr = Address.getByName("www.dnsjava.org");
-</code></pre>
-
-<br>
-
-<p><b>Get the MX target and preference of a name:</b></p>
-<pre><code>
-Record [] records = new Lookup("gmail.com", Type.MX).run();
-for (int i = 0; i &lt; records.length; i++) {
-	MXRecord mx = (MXRecord) records[i];
-	System.out.println("Host " + mx.getTarget() + " has preference ", mx.getPriority());
-}
-</code></pre>
-
-<br>
-
-<p><b>Query a remote name server for its version:</b></p>
-<pre><code>
-Lookup l = new Lookup("version.bind.", Type.TXT, DClass.CH);
-l.setResolver(new SimpleResolver(args[0]));
-l.run();
-if (l.getResult() == Lookup.SUCCESSFUL)
-	System.out.println(l.getAnswers()[0].rdataToString());
-</code></pre>
-
-<br>
-
-<p><b>Transfer a zone from a server and print it:</b></p>
-<pre><code>
-ZoneTransferIn xfr = ZoneTransferIn.newAXFR(new Name("."), "192.5.5.241", null);
-List records = xfr.run();
-for (Iterator it = records.iterator(); it.hasNext(); )
-	System.out.println(it.next());
-</code></pre>
-
-<br>
-
-<p><b>Use DNS dynamic update to set the address of a host to a value specified on the command line:</b></p>
-<pre><code>
-Name zone = Name.fromString("dyn.test.example.");
-Name host = Name.fromString("host", zone);
-Update update = new Update(zone);
-update.replace(host, Type.A, 3600, args[0]);
-
-Resolver res = new SimpleResolver("10.0.0.1");
-res.setTSIGKey(new TSIG(host, base64.fromString("1234")));
-res.setTCP(true);
-
-Message response = res.send(update);
-</code></pre>
-
-<br>
-
-<p><b>Manipulate domain names:</b></p>
-<pre><code>
-Name n = Name.fromString("www.dnsjava.org");
-Name o = Name.fromString("dnsjava.org");
-System.out.println(n.subdomain(o));            // True
-
-System.out.println(n.compareTo(o));            // &gt; 0
-
-Name rel = n.relativize(o);                    // the relative name 'www'
-Name n2 = Name.concatenate(rel, o);
-System.out.println(n2.equals(n));              // True
-
-// www
-// dnsjava
-// org
-for (int i = 0; i &lt; n.labels(); i++)
-	System.out.println(n.getLabelString(i));
-</code></pre>
+<td id="wikicontent" class="psdescription">
+    <h2><a name="Multicast_DNS_(mDNS)_&amp;_DNS-Based_Service_Discovery_(DNS-SD)"></a>Multicast DNS
+        (mDNS) &amp; DNS-Based Service Discovery (DNS-SD) in Java<a
+                href="#Multicast_DNS_(mDNS)_&amp;_DNS-Based_Service_Discovery_(DNS-SD)"
+                class="section_anchor"></a></h2>
+    <h3><a name="Introduction"></a>Introduction<a href="#Introduction" class="section_anchor"></a>
+    </h3>
+    <p>The Multicast DNS (mDNS) [<a href="http://tools.ietf.org/html/rfc6762" rel="nofollow">RFC
+        6762</a>] &amp; DNS-Based Service Discovery (DNS-SD) [<a
+            href="http://tools.ietf.org/html/rfc6763" rel="nofollow">RFC 6763</a> in Java, mdnsjava
+        for short, project is an extension of the dnsjava [<a href="http://www.dnsjava.org"
+                                                              rel="nofollow">dnsjava.org</a>]
+        project that implements Multicast DNS (mDNS) [<a href="http://tools.ietf.org/html/rfc6762"
+                                                         rel="nofollow">RFC 6762</a>] and DNS-Based
+        Service Discovery (DNS-SD) [<a href="http://tools.ietf.org/html/rfc6763" rel="nofollow">RFC
+            6763</a>] in Java (aka. Bonjour in Java). mdnsjava does not artificially bind the mDNS
+        and DNS-based Service Discovery functionality into a single combined API, instead, treating
+        each as a separate function, independent from, but related to, the other. Thus, allowing
+        clients to use Multicast DNS (mDNS) [<a href="http://tools.ietf.org/html/rfc6762"
+                                                rel="nofollow">RFC 6762</a>] as a substitute for DNS
+        and not just for service discovery. </p><h4><a name="Features,_Version_2.1.5"></a>Features,
+    Version 2.1.5<a href="#Features,_Version_2.1.5" class="section_anchor"></a></h4>
+    <ul>
+        <li>Multicast DNS (mDNS) Responder</li>
+        <li>Multicast DNS (mDNS) Querier</li>
+        <li>Service Registration/Unregistration</li>
+        <li>Browsing for Services</li>
+        <li>Browsing for DNS/mDNS Resource Records</li>
+        <li>Resolving/Looking up Services synchronously and asynchronously</li>
+        <li>Resolving/Looking up DNS/mDNS Resource Records synchronously and asynchronously</li>
+        <li>Tested with dnsjava versions 2.1.4, 2.1.5, and 2.1.6.</li>
+    </ul>
+    <h4><a name="Dependencies"></a>Dependencies<a href="#Dependencies" class="section_anchor"></a>
+    </h4>
+    <p>This project depends on: </p>
+    <ul>
+        <li><a href="http://www.dnsjava.org" rel="nofollow">dnsjava.org</a> project, version 2.1.5
+            or higher. (may work with early versions)
+        </li>
+        <li>Java SE 1.5 or higher</li>
+    </ul>
+    <p></p><h4><a name="Command_Line_Tool_Usage"></a>Command Line Tool Usage<a
+        href="#Command_Line_Tool_Usage" class="section_anchor"></a></h4>
+    <p></p>
+    <pre class="prettyprint"><span class="pln">&nbsp;$java </span><span class="pun">-</span><span
+            class="pln">jar mdnsjava</span><span class="pun">.</span><span class="pln">jar dnssd<br>&nbsp;</span><p></p><p>
+        <span class="pln"> </span><span class="typ">Command</span><span class="pln"> </span><span
+            class="typ">Line</span><span class="pun">:</span><span
+            class="pln"> &nbsp;dnssd </span><span class="str">&lt;option&gt;</span><span
+            class="pln"> </span><span class="pun">[</span><span class="pln">parameters</span><span
+            class="pun">]</span><span class="pln"> </span></p><p><span
+            class="pln">&nbsp;dnssd </span><span class="pun">-</span><span class="pln">E &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; </span><span
+            class="pun">(</span><span class="typ">Enumerate</span><span class="pln"> recommended registration domains</span><span
+            class="pun">)</span><span class="pln"><br>&nbsp;dnssd </span><span
+            class="pun">-</span><span class="pln">F &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; </span><span
+            class="pun">(</span><span class="typ">Enumerate</span><span class="pln"> recommended browsing domains</span><span
+            class="pun">)</span><span class="pln"><br>&nbsp;dnssd </span><span
+            class="pun">-</span><span class="pln">B &nbsp; &nbsp; &nbsp; &nbsp;</span><span
+            class="pun">&lt;</span><span class="typ">Type</span><span class="pun">&gt;</span><span
+            class="pln"> </span><span class="pun">[&lt;</span><span class="typ">Domain</span><span
+            class="pun">&gt;]</span><span
+            class="pln"> &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; </span><span class="pun">(</span><span
+            class="typ">Browse</span><span class="pln"> </span><span class="kwd">for</span><span
+            class="pln"> services instances</span><span class="pun">)</span><span class="pln"><br>&nbsp;dnssd </span><span
+            class="pun">-</span><span class="pln">L </span><span class="pun">&lt;</span><span
+            class="typ">Name</span><span class="pun">&gt;</span><span class="pln"> </span><span
+            class="pun">&lt;</span><span class="typ">Type</span><span class="pun">&gt;</span><span
+            class="pln"> </span><span class="pun">[&lt;</span><span class="typ">Domain</span><span
+            class="pun">&gt;]</span><span class="pln"> &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span><span
+            class="pun">(</span><span class="typ">Look</span><span class="pln"> up a service instance</span><span
+            class="pun">)</span><span class="pln"><br>&nbsp;dnssd </span><span
+            class="pun">-</span><span class="pln">R </span><span class="pun">&lt;</span><span
+            class="typ">Name</span><span class="pun">&gt;</span><span class="pln"> </span><span
+            class="pun">&lt;</span><span class="typ">Type</span><span class="pun">&gt;</span><span
+            class="pln"> </span><span class="pun">&lt;</span><span class="typ">Domain</span><span
+            class="pun">&gt;</span><span class="pln"> </span><span class="pun">&lt;</span><span
+            class="typ">Port</span><span class="pun">&gt;</span><span class="pln"> </span><span
+            class="pun">&lt;</span><span class="typ">Host</span><span class="pun">&gt;</span><span
+            class="pln"> </span><span class="pun">[&lt;</span><span class="pln">TXT</span><span
+            class="pun">&gt;...]</span><span class="pln"> </span><span class="pun">(</span><span
+            class="typ">Register</span><span class="pln"> a service</span><span class="pun">)</span><span
+            class="pln"><br>&nbsp;dnssd </span><span class="pun">-</span><span class="pln">Q </span><span
+            class="pun">&lt;</span><span class="pln">FQDN</span><span class="pun">&gt;</span><span
+            class="pln"> </span><span class="str">&lt;rrtype&gt;</span><span
+            class="pln"> </span><span class="str">&lt;rrclass&gt;</span><span class="pln"> &nbsp; &nbsp; &nbsp; &nbsp;</span><span
+            class="pun">(</span><span class="typ">Generic</span><span
+            class="pln"> query </span><span class="kwd">for</span><span
+            class="pln"> any record type</span><span class="pun">)</span><span class="pln"><br>&nbsp;dnssd </span><span
+            class="pun">-</span><span class="pln">G v4</span><span class="pun">/</span><span
+            class="pln">v6</span><span class="pun">/</span><span class="pln">v4v6 </span><span
+            class="pun">&lt;</span><span class="typ">Hostname</span><span
+            class="pun">&gt;</span><span class="pln"> &nbsp; &nbsp; &nbsp; &nbsp; </span><span
+            class="pun">(</span><span class="typ">Get</span><span
+            class="pln"> address information </span><span class="kwd">for</span><span class="pln"> hostname</span><span
+            class="pun">)</span><span class="pln"><br>&nbsp;dnssd </span><span
+            class="pun">-</span><span class="pln">V &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; </span><span
+            class="pun">(</span><span class="typ">Get</span><span class="pln"> version of currently running daemon </span><span
+            class="pun">/</span><span class="pln"> system service</span><span
+            class="pun">)</span><span class="pln"><br>&nbsp;$</span></p></pre>
+    <p></p><h4><a name="API_Usage"></a>API Usage<a href="#API_Usage" class="section_anchor"></a>
+</h4>
+    <p>Browse for Browse and Registration Domains using the default DNS search path. </p>
+    <pre class="prettyprint lang-Java"><span class="pln">&nbsp;</span><span
+            class="typ">Resolve</span><span class="pln"> resolve </span><span
+            class="pun">=</span><span class="pln"> </span><span class="kwd">new</span><span
+            class="pln"> </span><span class="typ">Resolve</span><span class="pun">(</span><span
+            class="typ">MulticastDNSService</span><span class="pun">.</span><span class="pln">DEFAULT_REGISTRATION_DOMAIN_NAME</span><span
+            class="pun">,</span><span class="pln"> <br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span><span
+            class="typ">MulticastDNSService</span><span class="pun">.</span><span class="pln">REGISTRATION_DOMAIN_NAME</span><span
+            class="pun">,</span><span class="pln"><br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span><span
+            class="typ">MulticastDNSService</span><span class="pun">.</span><span class="pln">DEFAULT_BROWSE_DOMAIN_NAME</span><span
+            class="pun">,</span><span class="pln"> <br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span><span
+            class="typ">MulticastDNSService</span><span class="pun">.</span><span class="pln">BROWSE_DOMAIN_NAME</span><span
+            class="pun">,</span><span class="pln"> <br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span><span
+            class="typ">MulticastDNSService</span><span class="pun">.</span><span class="pln">LEGACY_BROWSE_DOMAIN_NAME</span><span
+            class="pun">);</span><span class="pln"><br>&nbsp;</span><span
+            class="typ">Domain</span><span class="pun">[]</span><span
+            class="pln"> domains </span><span class="pun">=</span><span
+            class="pln"> resolve</span><span class="pun">.</span><span
+            class="pln">resolveDomains</span><span class="pun">();</span><span class="pln"><br>&nbsp;</span><span
+            class="kwd">for</span><span class="pln"> </span><span class="pun">(</span><span
+            class="typ">Domain</span><span class="pln"> domain </span><span
+            class="pun">:</span><span class="pln"> domains</span><span class="pun">)</span><span
+            class="pln"><br>&nbsp;</span><span class="pun">{</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span
+            class="typ">System</span><span class="pun">.</span><span class="kwd">out</span><span
+            class="pun">.</span><span class="pln">println</span><span class="pun">(</span><span
+            class="pln">domain</span><span class="pun">);</span><span
+            class="pln"><br>&nbsp;</span><span class="pun">}</span><span class="pln"><br>&nbsp;resolve</span><span
+            class="pun">.</span><span class="pln">close</span><span class="pun">();</span><span
+            class="pln"><br>&nbsp;</span></pre>
+    Browsing for Services. Receiving events for each service discovered and removed.
+    <pre class="prettyprint lang-Java"><span class="pln">&nbsp;</span><span
+            class="typ">Browse</span><span class="pln"> browse </span><span
+            class="pun">=</span><span class="pln"> </span><span class="kwd">new</span><span
+            class="pln"> </span><span class="typ">Browse</span><span class="pun">(</span><span
+            class="pln">serviceTypes</span><span class="pun">);</span><span class="pln"><br>&nbsp;browse</span><span
+            class="pun">.</span><span class="pln">start</span><span class="pun">(</span><span
+            class="kwd">new</span><span class="pln"> </span><span
+            class="typ">DNSSDListener</span><span class="pun">()</span><span class="pln"><br>&nbsp;</span><span
+            class="pun">{</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span class="kwd">public</span><span
+            class="pln"> </span><span class="kwd">void</span><span
+            class="pln"> serviceDiscovered</span><span class="pun">(</span><span
+            class="typ">Object</span><span class="pln"> id</span><span class="pun">,</span><span
+            class="pln"> </span><span class="typ">ServiceInstance</span><span
+            class="pln"> service</span><span class="pun">)</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span
+            class="pun">{</span><span class="pln"><br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span><span
+            class="typ">System</span><span class="pun">.</span><span class="kwd">out</span><span
+            class="pun">.</span><span class="pln">println</span><span class="pun">(</span><span
+            class="str">"Service Discovered - "</span><span class="pln"> </span><span
+            class="pun">+</span><span class="pln"> service</span><span class="pun">);</span><span
+            class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span class="pun">}</span><span
+            class="pln"><br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<br>&nbsp; &nbsp; &nbsp;</span><span
+            class="kwd">public</span><span class="pln"> </span><span class="kwd">void</span><span
+            class="pln"> serviceRemoved</span><span class="pun">(</span><span
+            class="typ">Object</span><span class="pln"> id</span><span class="pun">,</span><span
+            class="pln"> </span><span class="typ">ServiceInstance</span><span
+            class="pln"> service</span><span class="pun">)</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span
+            class="pun">{</span><span class="pln"><br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span><span
+            class="typ">System</span><span class="pun">.</span><span class="kwd">out</span><span
+            class="pun">.</span><span class="pln">println</span><span class="pun">(</span><span
+            class="str">"Service Removed - "</span><span class="pln"> </span><span
+            class="pun">+</span><span class="pln"> service</span><span class="pun">);</span><span
+            class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span class="pun">}</span><span
+            class="pln"><br>&nbsp;</span><p></p><p><span class="pln"> &nbsp; &nbsp;</span><span
+            class="kwd">public</span><span class="pln"> </span><span class="kwd">void</span><span
+            class="pln"> handleException</span><span class="pun">(</span><span
+            class="typ">Object</span><span class="pln"> id</span><span class="pun">,</span><span
+            class="pln"> </span><span class="typ">Exception</span><span class="pln"> e</span><span
+            class="pun">)</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span
+            class="pun">{</span><span class="pln"><br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span><span
+            class="typ">System</span><span class="pun">.</span><span class="pln">err</span><span
+            class="pun">.</span><span class="pln">println</span><span class="pun">(</span><span
+            class="str">"Exception: "</span><span class="pln"> </span><span
+            class="pun">+</span><span class="pln"> e</span><span class="pun">.</span><span
+            class="pln">getMessage</span><span class="pun">());</span><span class="pln"><br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;e</span><span
+            class="pun">.</span><span class="pln">printStackTrace</span><span
+            class="pun">(</span><span class="typ">System</span><span class="pun">.</span><span
+            class="pln">err</span><span class="pun">);</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span
+            class="pun">}</span><span class="pln"><br>&nbsp;</span><span class="pun">});</span><span
+            class="pln"><br>&nbsp;</span><span class="kwd">while</span><span
+            class="pln"> </span><span class="pun">(</span><span class="kwd">true</span><span
+            class="pun">)</span><span class="pln"><br>&nbsp;</span><span class="pun">{</span><span
+            class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span class="typ">Thread</span><span
+            class="pun">.</span><span class="pln">sleep</span><span class="pun">(</span><span
+            class="lit">10</span><span class="pun">);</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span
+            class="kwd">if</span><span class="pln"> </span><span class="pun">(</span><span
+            class="typ">System</span><span class="pun">.</span><span class="kwd">in</span><span
+            class="pun">.</span><span class="pln">read</span><span class="pun">()</span><span
+            class="pln"> </span><span class="pun">==</span><span class="pln"> </span><span
+            class="str">'q'</span><span class="pun">)</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span
+            class="pun">{</span><span class="pln"><br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span><span
+            class="kwd">break</span><span class="pun">;</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span
+            class="pun">}</span><span class="pln"><br>&nbsp;</span><span class="pun">}</span><span
+            class="pln"><br>&nbsp;browse</span><span class="pun">.</span><span
+            class="pln">close</span><span class="pun">();</span><span class="pln"><br>&nbsp;</span>
+    </p></pre>
+    Resolve (Lookup) a Service, (one shot synchronously).
+    <pre class="prettyprint lang-Java"><span class="pln">&nbsp;</span><span
+            class="typ">Resolve</span><span class="pln"> resolve </span><span
+            class="pun">=</span><span class="pln"> </span><span class="kwd">new</span><span
+            class="pln"> </span><span class="typ">Resolve</span><span class="pun">(</span><span
+            class="str">"Test._mdc._tcp.local."</span><span class="pun">);</span><span
+            class="pln"><br>&nbsp;</span><span class="typ">ServiceInstance</span><span class="pun">[]</span><span
+            class="pln"> services </span><span class="pun">=</span><span class="pln"> resolve</span><span
+            class="pun">.</span><span class="pln">resolveServices</span><span class="pun">();</span><span
+            class="pln"><br>&nbsp;</span><span class="kwd">for</span><span class="pln"> </span><span
+            class="pun">(</span><span class="typ">ServiceInstance</span><span
+            class="pln"> service </span><span class="pun">:</span><span class="pln"> services</span><span
+            class="pun">)</span><span class="pln"><br>&nbsp;</span><span class="pun">{</span><span
+            class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span class="typ">System</span><span
+            class="pun">.</span><span class="kwd">out</span><span class="pun">.</span><span
+            class="pln">println</span><span class="pun">(</span><span
+            class="pln">service</span><span class="pun">);</span><span class="pln"><br>&nbsp;</span><span
+            class="pun">}</span><span class="pln"><br>&nbsp;</span></pre>
+    Resolve (Lookup) a Records, (one shot synchronously).
+    <pre class="prettyprint lang-Java"><span class="pln">&nbsp;</span><span
+            class="typ">Resolve</span><span class="pln"> resolve </span><span
+            class="pun">=</span><span class="pln"> </span><span class="kwd">new</span><span
+            class="pln"> </span><span class="typ">Resolve</span><span class="pun">(</span><span
+            class="str">"Test._mdc._tcp.local."</span><span class="pun">,</span><span
+            class="pln"> </span><span class="typ">Type</span><span class="pun">.</span><span
+            class="pln">ANY</span><span class="pun">,</span><span class="pln"> </span><span
+            class="typ">DClass</span><span class="pun">.</span><span class="pln">IN</span><span
+            class="pun">);</span><span class="pln"><br>&nbsp;</span><span
+            class="typ">Record</span><span class="pun">[]</span><span
+            class="pln"> records </span><span class="pun">=</span><span
+            class="pln"> resolve</span><span class="pun">.</span><span
+            class="pln">resolveRecords</span><span class="pun">();</span><span class="pln"><br>&nbsp;</span><span
+            class="kwd">for</span><span class="pln"> </span><span class="pun">(</span><span
+            class="typ">Record</span><span class="pln"> record </span><span
+            class="pun">:</span><span class="pln"> records</span><span class="pun">)</span><span
+            class="pln"><br>&nbsp;</span><span class="pun">{</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span
+            class="typ">System</span><span class="pun">.</span><span class="kwd">out</span><span
+            class="pun">.</span><span class="pln">println</span><span class="pun">(</span><span
+            class="pln">records</span><span class="pun">);</span><span class="pln"><br>&nbsp;</span><span
+            class="pun">}</span><span class="pln"><br>&nbsp;</span></pre>
+    Resolve (Lookup) a Records asynchronously, (one shot asynchronously).
+    <pre class="prettyprint lang-Java"><span class="pln">&nbsp;</span><span
+            class="typ">Resolve</span><span class="pln"> resolve </span><span
+            class="pun">=</span><span class="pln"> </span><span class="kwd">new</span><span
+            class="pln"> </span><span class="typ">Resolve</span><span class="pun">(</span><span
+            class="str">"Test._mdc._tcp.local."</span><span class="pun">,</span><span
+            class="pln"> </span><span class="typ">Type</span><span class="pun">.</span><span
+            class="pln">ANY</span><span class="pun">,</span><span class="pln"> </span><span
+            class="typ">DClass</span><span class="pun">.</span><span class="pln">IN</span><span
+            class="pun">);</span><span class="pln"><br>&nbsp;</span><span
+            class="typ">Record</span><span class="pun">[]</span><span
+            class="pln"> records </span><span class="pun">=</span><span
+            class="pln"> resolve</span><span class="pun">.</span><span class="pln">resolveRecordsAsych</span><span
+            class="pun">(</span><span class="kwd">new</span><span class="pln"> </span><span
+            class="typ">RecordListener</span><span class="pun">()</span><span class="pln"><br>&nbsp;</span><span
+            class="pun">{</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span class="kwd">public</span><span
+            class="pln"> </span><span class="kwd">void</span><span class="pln"> receiveRecord</span><span
+            class="pun">(</span><span class="typ">Object</span><span class="pln"> id</span><span
+            class="pun">,</span><span class="pln"> </span><span class="typ">Record</span><span
+            class="pln"> record</span><span class="pun">)</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span
+            class="pun">{</span><span class="pln"><br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span><span
+            class="typ">System</span><span class="pun">.</span><span class="kwd">out</span><span
+            class="pun">.</span><span class="pln">println</span><span class="pun">(</span><span
+            class="str">"Record Found - "</span><span class="pln"> </span><span class="pun">+</span><span
+            class="pln"> record</span><span class="pun">);</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span
+            class="pun">}</span><span class="pln"><br>&nbsp;</span><p></p><p><span class="pln"> &nbsp; &nbsp;</span><span
+            class="kwd">public</span><span class="pln"> </span><span class="kwd">void</span><span
+            class="pln"> handleException</span><span class="pun">(</span><span
+            class="typ">Object</span><span class="pln"> id</span><span class="pun">,</span><span
+            class="pln"> </span><span class="typ">Exception</span><span class="pln"> e</span><span
+            class="pun">)</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span
+            class="pun">{</span><span class="pln"><br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span><span
+            class="typ">System</span><span class="pun">.</span><span class="pln">err</span><span
+            class="pun">.</span><span class="pln">println</span><span class="pun">(</span><span
+            class="str">"Exception: "</span><span class="pln"> </span><span
+            class="pun">+</span><span class="pln"> e</span><span class="pun">.</span><span
+            class="pln">getMessage</span><span class="pun">());</span><span class="pln"><br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;e</span><span
+            class="pun">.</span><span class="pln">printStackTrace</span><span
+            class="pun">(</span><span class="typ">System</span><span class="pun">.</span><span
+            class="pln">err</span><span class="pun">);</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span
+            class="pun">}</span><span class="pln"><br>&nbsp;</span><span class="pun">});</span><span
+            class="pln"><br>&nbsp;</span><span class="typ">Thread</span><span
+            class="pun">.</span><span class="pln">sleep</span><span class="pun">(</span><span
+            class="lit">1000</span><span class="pun">);</span><span
+            class="pln"><br>&nbsp;resolve</span><span class="pun">.</span><span
+            class="pln">close</span><span class="pun">();</span><span class="pln"><br>&nbsp;</span>
+    </p></pre>
+    Register and Unregister a Service
+    <pre class="prettyprint lang-Java"><span class="pln">&nbsp;</span><span class="typ">MulticastDNSService</span><span
+            class="pln"> mDNSService </span><span class="pun">=</span><span
+            class="pln"> </span><span class="kwd">new</span><span class="pln"> </span><span
+            class="typ">MulticastDNSService</span><span class="pun">();</span><span class="pln"><br>&nbsp;</span><span
+            class="typ">ServiceInstance</span><span class="pln"> service </span><span
+            class="pun">=</span><span class="pln"> </span><span class="kwd">new</span><span
+            class="pln"> </span><span class="typ">ServiceInstance</span><span
+            class="pun">(</span><span class="pln">serviceName</span><span class="pun">,</span><span
+            class="pln"> </span><span class="lit">0</span><span class="pun">,</span><span
+            class="pln"> </span><span class="lit">0</span><span class="pun">,</span><span
+            class="pln"> port</span><span class="pun">,</span><span
+            class="pln"> hostname</span><span class="pun">,</span><span class="pln"> </span><span
+            class="typ">MulticastDNSService</span><span class="pun">.</span><span class="pln">DEFAULT_SRV_TTL</span><span
+            class="pun">,</span><span class="pln"> addresses</span><span class="pun">,</span><span
+            class="pln"> txtValues</span><span class="pun">);</span><span
+            class="pln"><br>&nbsp;</span><span class="typ">ServiceInstance</span><span class="pln"> registeredService </span><span
+            class="pun">=</span><span class="pln"> mDNSService</span><span class="pun">.</span><span
+            class="kwd">register</span><span class="pun">(</span><span
+            class="pln">service</span><span class="pun">);</span><span class="pln"><br>&nbsp;</span><span
+            class="kwd">if</span><span class="pln"> </span><span class="pun">(</span><span
+            class="pln">registeredService </span><span class="pun">!=</span><span
+            class="pln"> </span><span class="kwd">null</span><span class="pun">)</span><span
+            class="pln"><br>&nbsp;</span><span class="pun">{</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span
+            class="typ">System</span><span class="pun">.</span><span class="kwd">out</span><span
+            class="pun">.</span><span class="pln">println</span><span class="pun">(</span><span
+            class="str">"Services Successfully Registered: \n\t"</span><span
+            class="pln"> </span><span class="pun">+</span><span
+            class="pln"> registeredService</span><span class="pun">);</span><span class="pln"><br>&nbsp;</span><span
+            class="pun">}</span><span class="pln"> </span><span class="kwd">else</span><span
+            class="pln"><br>&nbsp;</span><span class="pun">{</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span
+            class="typ">System</span><span class="pun">.</span><span class="pln">err</span><span
+            class="pun">.</span><span class="pln">println</span><span class="pun">(</span><span
+            class="str">"Services Registration Failed!"</span><span class="pun">);</span><span
+            class="pln"><br>&nbsp;</span><span class="pun">}</span><span
+            class="pln"><br>&nbsp;</span><span class="kwd">while</span><span
+            class="pln"> </span><span class="pun">(</span><span class="kwd">true</span><span
+            class="pun">)</span><span class="pln"><br>&nbsp;</span><span class="pun">{</span><span
+            class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span class="typ">Thread</span><span
+            class="pun">.</span><span class="pln">sleep</span><span class="pun">(</span><span
+            class="lit">10</span><span class="pun">);</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span
+            class="kwd">if</span><span class="pln"> </span><span class="pun">(</span><span
+            class="typ">System</span><span class="pun">.</span><span class="kwd">in</span><span
+            class="pun">.</span><span class="pln">read</span><span class="pun">()</span><span
+            class="pln"> </span><span class="pun">==</span><span class="pln"> </span><span
+            class="str">'q'</span><span class="pun">)</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span
+            class="pun">{</span><span class="pln"><br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span><span
+            class="kwd">if</span><span class="pln"> </span><span class="pun">(</span><span
+            class="pln">mDNSService</span><span class="pun">.</span><span
+            class="pln">unregister</span><span class="pun">(</span><span class="pln">registeredService</span><span
+            class="pun">))</span><span
+            class="pln"><br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span><span class="pun">{</span><span
+            class="pln"><br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span><span
+            class="typ">System</span><span class="pun">.</span><span class="kwd">out</span><span
+            class="pun">.</span><span class="pln">println</span><span class="pun">(</span><span
+            class="str">"Services Successfully Unregistered: \n\t"</span><span
+            class="pln"> </span><span class="pun">+</span><span class="pln"> service</span><span
+            class="pun">);</span><span
+            class="pln"><br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span><span class="pun">}</span><span
+            class="pln"> </span><span class="kwd">else</span><span class="pln"><br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span><span
+            class="pun">{</span><span class="pln"><br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span><span
+            class="typ">System</span><span class="pun">.</span><span class="pln">err</span><span
+            class="pun">.</span><span class="pln">println</span><span class="pun">(</span><span
+            class="str">"Services Unregistration Failed!"</span><span class="pun">);</span><span
+            class="pln"><br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span><span class="pun">}</span><span
+            class="pln"><br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span><span
+            class="kwd">break</span><span class="pun">;</span><span class="pln"><br>&nbsp; &nbsp; &nbsp;</span><span
+            class="pun">}</span><span class="pln"><br>&nbsp;</span><span class="pun">}</span><span
+            class="pln"><br>&nbsp;mDNSService</span><span class="pun">.</span><span class="pln">close</span><span
+            class="pun">();</span><span class="pln"><br>&nbsp;</span></pre>
+    <p></p><h4><a name="Workaround_for_Java_IPv6_Issues"></a>Workaround for Java IPv6 Issues<a
+        href="#Workaround_for_Java_IPv6_Issues" class="section_anchor"></a></h4>
+    <p>Numerous bugs have been reported with Java's support of IPv6. Among them is an issue where
+        the IP header's Time To Live (TTL) value for datagrams does not get set properly. If the IP
+        header's Time To Live (TTL) value is not set to 255, then the Java VM must be started with
+        IPv6 disabled, using the "-Djava.net.preferIPv4Stack=true" VM option. This is true for IPv4
+        datagrams as well. Disabling IPv6 fixes the TTL issue for IPv4. </p>
+    <p>For Example: </p>
+    <pre class="prettyprint"><span class="pln">&nbsp;java </span><span class="pun">-</span><span
+            class="typ">Djava</span><span class="pun">.</span><span class="pln">net</span><span
+            class="pun">.</span><span class="pln">preferIPv4Stack</span><span
+            class="pun">=</span><span class="kwd">true</span><span class="pln"> </span><span
+            class="pun">-</span><span class="pln">jar mdnsjava</span><span class="pun">.</span><span
+            class="pln">jar dnssd </span><span class="pun">-</span><span
+            class="pln">E<br>&nbsp;</span></pre>
+    <p></p><h4><a name="SMPTE_ST2071_Media_&amp;_Device_Control_over_IP"></a>SMPTE ST2071 Media
+    &amp; Device Control over IP<a href="#SMPTE_ST2071_Media_&amp;_Device_Control_over_IP"
+                                   class="section_anchor"></a></h4>
+    <p>This project was originally created for the development of a proofing of concept application
+        for the Society of Motion Picture and Television Engineers (SMPTE) suite of standards on
+        Media &amp; Device Control over IP networks, [<a
+                href="http://standards.smpte.org/search?fulltext=2071&amp;smptes-status=in-force&amp;submit=yes&amp;content-group=smptes"
+                rel="nofollow">SMPTE ST2071</a>]. The SMPTE ST2071 suite of standards defines an
+        open standard for the representation of devices and services within an Internet of Things
+        (IoT) and defines extensions to the DNS-SD protocol that allows for the service discovery
+        DNS infrastructure to differ from the DNS infrastructure used by clients for name
+        resolution. </p>
+    <p>
+    <div id="___plusone_0"
+         style="text-indent: 0px; margin: 0px; padding: 0px; border-style: none; float: none; line-height: normal; font-size: 1px; vertical-align: baseline; display: inline-block; width: 90px; height: 20px; background: transparent;">
+        <iframe frameborder="0" hspace="0" marginheight="0" marginwidth="0" scrolling="no"
+                style="position: static; top: 0px; width: 90px; margin: 0px; border-style: none; left: 0px; visibility: visible; height: 20px;"
+                tabindex="0" vspace="0" width="100%" id="I0_1449507454746" name="I0_1449507454746"
+                src="https://apis.google.com/u/0/se/0/_/+1/fastbutton?usegapi=1&amp;size=medium&amp;source=google%3Aprojecthosting&amp;hl=en&amp;origin=https%3A%2F%2Fcode.google.com&amp;url=https%3A%2F%2Fcode.google.com%2Fp%2Fmdnsjava%2F&amp;gsrc=3p&amp;ic=1&amp;jsh=m%3B%2F_%2Fscs%2Fapps-static%2F_%2Fjs%2Fk%3Doz.gapi.en_GB.GKSx0_q8MfA.O%2Fm%3D__features__%2Fam%3DAQ%2Frt%3Dj%2Fd%3D1%2Ft%3Dzcms%2Frs%3DAGLTcCPdV57qJOtAbsMIrE0-PBubzfbAUA#_methods=onPlusOne%2C_ready%2C_close%2C_open%2C_resizeMe%2C_renderstart%2Concircled%2Cdrefresh%2Cerefresh&amp;id=I0_1449507454746&amp;parent=https%3A%2F%2Fcode.google.com&amp;pfname=&amp;rpctoken=33806295"
+                data-gapiattached="true" title="+1"></iframe>
+    </div>
+    </p>
+</td>
 
 </body>
 </html>

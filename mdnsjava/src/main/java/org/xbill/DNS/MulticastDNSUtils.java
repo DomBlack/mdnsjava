@@ -1,5 +1,8 @@
 package org.xbill.DNS;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -14,12 +17,14 @@ import java.util.List;
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class MulticastDNSUtils
 {
+	private static final Logger log = LoggerFactory.getLogger(MulticastDNSUtils.class);
+
     public static final Record[] EMPTY_RECORDS = new Record[0];
-    
-    
+
+
     /**
      * Tests if the response message answers all of the questions within the query message.
-     * 
+     *
      * @param query The query message
      * @param response The response message
      * @return True if the response message answers all of the questions in the query message.
@@ -50,7 +55,7 @@ public class MulticastDNSUtils
                     }
                     index++;
                 }
-                
+
                 for (boolean similar : similarArray)
                 {
                     if (!similar)
@@ -60,14 +65,14 @@ public class MulticastDNSUtils
                 }
                 return true;
         }
-        
+
         return false;
     }
-    
-    
+
+
     /**
      * Tests if the response message answers any of the questions within the query message.
-     * 
+     *
      * @param query The query message
      * @param response The response message
      * @return True if the response message answers any of the questions in the query message.
@@ -75,12 +80,12 @@ public class MulticastDNSUtils
     public static boolean answersAny(final Message query, final Message response)
     {
         Header h = response.getHeader();
-        
+
         if (!h.getFlag(Flags.QR))
         {
             return false;
         }
-        
+
         switch (h.getOpcode())
         {
             case Opcode.QUERY :
@@ -101,21 +106,21 @@ public class MulticastDNSUtils
                     }
                 }
         }
-        
+
         return false;
     }
-    
-    
+
+
     public static Record clone(final Record record)
     {
         return record.cloneRecord();
     }
-    
-    
+
+
     public static Record[] extractRecords(final Message message, final int... sections)
     {
         Record[] records = EMPTY_RECORDS;
-        
+
         for (int section : sections)
         {
             Record[] tempRecords = message.getSectionArray(section);
@@ -128,20 +133,20 @@ public class MulticastDNSUtils
                 records = newRecords;
             }
         }
-        
+
         return records;
     }
-    
-    
+
+
     public static final Record[] extractRecords(final RRset rrset)
     {
         if (rrset == null)
         {
             return new Record[0];
         }
-        
+
         final Record[] results = new Record[rrset.size()];
-        
+
         if (results.length > 0)
         {
             int index = 0;
@@ -154,25 +159,25 @@ public class MulticastDNSUtils
                 }
             }
         }
-        
+
         return results;
     }
-    
-    
+
+
     public static final Record[] extractRecords(final RRset[] rrs)
     {
         if ((rrs == null) || (rrs.length == 0))
         {
             return MulticastDNSUtils.EMPTY_RECORDS;
         }
-        
+
         int capacity = 0;
         for (RRset rr : rrs)
         {
             capacity += rr.size();
         }
         final Record[] results = new Record[capacity];
-        
+
         int index = 0;
         for (RRset rr : rrs)
         {
@@ -182,11 +187,11 @@ public class MulticastDNSUtils
                 results[index++] = record;
             }
         }
-        
+
         return results;
     }
-    
-    
+
+
     public static String getHostName()
     {
         String hostname = System.getenv().get("HOSTNAME");
@@ -194,14 +199,14 @@ public class MulticastDNSUtils
         {
             hostname = System.getenv().get("COMPUTERNAME");
         }
-        
+
         if ((hostname == null) || (hostname.trim().length() == 0))
         {
             try
             {
                 InetAddress localhost = InetAddress.getLocalHost();
                 hostname = localhost.getHostName();
-                
+
                 if ((hostname == null) || hostname.startsWith("unknown"))
                 {
                     hostname = localhost.getCanonicalHostName();
@@ -210,30 +215,30 @@ public class MulticastDNSUtils
             {
             }
         }
-        
+
         return hostname;
     }
-    
-    
+
+
     public static InetAddress[] getLocalAddresses()
     {
         ArrayList addresses = new ArrayList();
-        
+
         try
         {
             Enumeration<NetworkInterface> enet = NetworkInterface.getNetworkInterfaces();
-            
+
             while (enet.hasMoreElements())
             {
                 NetworkInterface net = enet.nextElement();
-                
+
                 if (net.isLoopback())
                 {
                     continue;
                 }
-                
+
                 Enumeration<InetAddress> eaddr = net.getInetAddresses();
-                
+
                 while (eaddr.hasMoreElements())
                 {
                     addresses.add(eaddr.nextElement());
@@ -243,34 +248,34 @@ public class MulticastDNSUtils
         {
             // ignore
         }
-        
+
         return (InetAddress[]) addresses.toArray(new InetAddress[addresses.size()]);
     }
-    
-    
+
+
     public static String getMachineName()
     {
         String name = null;
-        
+
         try
         {
             Enumeration<NetworkInterface> enet = NetworkInterface.getNetworkInterfaces();
-            
+
             while (enet.hasMoreElements() && (name == null))
             {
                 NetworkInterface net = enet.nextElement();
-                
+
                 if (net.isLoopback())
                 {
                     continue;
                 }
-                
+
                 Enumeration<InetAddress> eaddr = net.getInetAddresses();
-                
+
                 while (eaddr.hasMoreElements())
                 {
                     InetAddress inet = eaddr.nextElement();
-                    
+
                     if (inet.getCanonicalHostName().equalsIgnoreCase(inet.getHostAddress()) == false)
                     {
                         name = inet.getCanonicalHostName();
@@ -282,11 +287,11 @@ public class MulticastDNSUtils
         {
             // ignore
         }
-        
+
         return name;
     }
-    
-    
+
+
     public static Name getTargetFromRecord(final Record record)
     {
         if (record instanceof SingleNameBase)
@@ -309,20 +314,18 @@ public class MulticastDNSUtils
             {
                 if (Options.check("mdns_verbose"))
                 {
-                    System.out.println("No further records for " +  record.getClass().getSimpleName() + ": " + record);
+                    log.info("No further records for " +  record.getClass().getSimpleName() + ": " + record);
                 }
             }
         }
-        
+
         return null;
     }
-    
-    
+
+
     /**
      * Compares the 2 messages and determines if they are equal.
-     * 
-     * @param message1
-     * @param message2
+     *
      * @return True if the messages are equal
      */
     public static boolean messagesEqual(final Message message1, final Message message2)
@@ -338,7 +341,7 @@ public class MulticastDNSUtils
             boolean headerEqual;
             Header responseHeader = message1.getHeader();
             Header queryHeader = message2.getHeader();
-            
+
             if (responseHeader == queryHeader)
             {
                 headerEqual = false;
@@ -353,56 +356,56 @@ public class MulticastDNSUtils
                 {
                     return false;
                 }
-                
+
                 headerEqual = (responseHeader.getOpcode() == queryHeader.getOpcode()) &&
                 (responseHeader.getRcode() == queryHeader.getRcode());
             }
-            
+
             return headerEqual && Arrays.equals(MulticastDNSUtils.extractRecords(message2, 0, 1, 2, 3), MulticastDNSUtils.extractRecords(message1, 0, 1, 2, 3));
         }
     }
-    
-    
+
+
     public static Message newQueryResponse(final Record[] records, final int section)
     {
         Message message = new Message();
         Header header = message.getHeader();
-        
+
         header.setRcode(Rcode.NOERROR);
         header.setOpcode(Opcode.QUERY);
         header.setFlag(Flags.QR);
-        
+
         for (int index = 0; index < records.length; index++)
         {
             message.addRecord(records[index], section);
         }
-        
+
         return message;
     }
-    
-    
+
+
     public static void setDClassForRecord(final Record record, final int dclass)
     {
         record.dclass = dclass;
     }
-    
-    
+
+
     public static void setTLLForRecord(final Record record, final long ttl)
     {
         record.setTTL(ttl);
     }
-    
-    
+
+
     public static Message[] splitMessage(final Message message)
     {
         List messages = new ArrayList();
-        
+
         int maxRecords = Options.intValue("mdns_max_records_per_message");
         if (maxRecords > 1)
         {
             maxRecords = 10;
         }
-        
+
         Message m = null;
         for (int section : new int[]{0, 1, 2, 3})
         {
@@ -424,7 +427,7 @@ public class MulticastDNSUtils
                 {
                     m.addRecord(records[index], section);
                 }
-                
+
                 // Only aggregate "mdns_max_records_per_message" or 10 questions into a single, to prevent large messages.
                 if ((index != 0) && ((index % maxRecords) == 0))
                 {
@@ -433,7 +436,7 @@ public class MulticastDNSUtils
                 }
             }
         }
-        
+
         return (Message[]) messages.toArray(new Message[messages.size()]);
     }
 }

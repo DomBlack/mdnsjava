@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Stack;
 import java.util.concurrent.TimeUnit;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xbill.DNS.Cache;
 import org.xbill.DNS.Credibility;
 import org.xbill.DNS.DClass;
@@ -36,23 +38,25 @@ import org.xbill.DNS.Type;
  * to avoid repeated failed DNS queries. The credibility of each RRset is
  * maintained, so that more credible records replace less credible records, and
  * lookups can specify the minimum credibility of data they are requesting.
- * 
+ *
  * !!! This cache implementation extends the Cache class. Reflection had to be used to access
  * !!! private fields and methods in the Cache class that prevent its direct extensibility.
- * 
+ *
  * @see Cache
- * 
+ *
  * @author Steve Posick
  */
 @SuppressWarnings({"unchecked",
 "rawtypes"})
 public class MulticastDNSCache extends Cache implements Closeable
 {
+	private static final Logger log = LoggerFactory.getLogger(MulticastDNSCache.class);
+
     /**
      * The CacheCheck interface allows a client to monitor the Cache data
      * and implement a cache refresh mechanism, such as what is required for
      * mDNS Caching. See RFC 6762 Section 5.2
-     * 
+     *
      * @author Steve Posick
      */
     public static interface CacheMonitor
@@ -62,65 +66,65 @@ public class MulticastDNSCache extends Cache implements Closeable
          * for the receipt of check and expired calls.
          */
         public void begin();
-        
-        
+
+
         /**
          * Called before a RRset is removed.
-         * 
+         *
          * @param rrs The RRset
          * @param credibility The credibility of the RRset
          * @param expiresIn The time remaining before the record expires.
          * @return true if the RRset can be removed from the cache
          */
         public void check(RRset rrs, int credibility, int expiresIn);
-        
-        
+
+
         /**
          * Called at the end of a Monitor task. Clears the state, releases resources, and performs
          * refresh of items identified as requiring a refresh.
          */
         public void end();
-        
-        
+
+
         /**
          * Called for RRsets that have expired.
-         * 
+         *
          * @param rrs The expired RRset
          * @param credibility The credibility of the RRset
          */
         public void expired(RRset rrs, int credibility);
-        
-        
+
+
         /**
          * Returns true if the CacheMonitor is operational (being called regularly).
-         * 
+         *
          * @return true if the CacheMonitor is operational (being called regularly)
          */
         public boolean isOperational();
     }
-    
-    
+
+
     protected static class ElementHelper
     {
         private Cache cache = null;
-        
+
         private Object element = null;
-        
+
         private Class clazz = null;
-        
+
         private Method expired = null;
-        
+
         private Method compareCredibility = null;
-        
+
         private Method getType = null;
-        
+
         private Method getTTL = null;
-        
+
         private Field expireField = null;
-        
+
         private Field credibilityField = null;
-        
-        
+
+
         protected ElementHelper(final Cache cache, final Object element)
         throws SecurityException, NoSuchMethodException, NoSuchFieldException,
         IllegalArgumentException, IllegalAccessException
@@ -128,15 +132,15 @@ public class MulticastDNSCache extends Cache implements Closeable
             this.cache = cache;
             this.element = element;
             clazz = element.getClass();
-            
+
             expireField = findField(clazz, "expire");
             credibilityField = findField(clazz, "credibility");
-            
+
             expired = findMethod(clazz, "expired", new Class[0]);
             compareCredibility = findMethod(clazz, "compareCredibility", new Class[] {Integer.TYPE});
             getType = findMethod(clazz, "getType", new Class[0]);
             getTTL = findMethod(clazz, "getTTL", new Class[0]);
-            
+
             AccessibleObject.setAccessible(new AccessibleObject[] {expireField,
                                                                    credibilityField}, true);
             AccessibleObject.setAccessible(new AccessibleObject[] {expired,
@@ -146,22 +150,22 @@ public class MulticastDNSCache extends Cache implements Closeable
                                                                    expireField,
                                                                    credibilityField}, true);
         }
-        
-        
+
+
         public int getCredibility()
         throws IllegalArgumentException, IllegalAccessException
         {
             return credibilityField.getInt(element);
         }
-        
-        
+
+
         public int getExpiresIn()
         throws IllegalArgumentException, IllegalAccessException
         {
             return getExpire() - (int) (System.currentTimeMillis() / 1000);
         }
-        
-        
+
+
         public long getTTL()
         throws IllegalArgumentException, IllegalAccessException,
         InvocationTargetException
@@ -175,45 +179,45 @@ public class MulticastDNSCache extends Cache implements Closeable
                 return 0;
             }
         }
-        
-        
+
+
         public void resetExpire()
         throws IllegalArgumentException, IllegalAccessException,
         InvocationTargetException
         {
             expireField.setInt(element, limitExpire(getTTL(), cache.getMaxCache()));
         }
-        
-        
+
+
         protected int compareCredibility(final int cred)
         throws IllegalArgumentException, IllegalAccessException,
         InvocationTargetException
         {
             return (Integer) compareCredibility.invoke(element, new Object[] {cred});
         }
-        
-        
+
+
         protected boolean expired()
         throws IllegalArgumentException, IllegalAccessException,
         InvocationTargetException
         {
             return (Boolean) expired.invoke(element, new Object[0]);
         }
-        
-        
+
+
         protected Object getElement()
         {
             return element;
         }
-        
-        
+
+
         protected int getExpire()
         throws IllegalArgumentException, IllegalAccessException
         {
             return expireField.getInt(element);
         }
-        
-        
+
+
         protected int getType()
         throws IllegalArgumentException, IllegalAccessException,
         InvocationTargetException
@@ -221,25 +225,25 @@ public class MulticastDNSCache extends Cache implements Closeable
             return (Integer) getType.invoke(element, new Object[0]);
         }
     }
-    
-    
+
+
     private class MonitorTask implements Runnable
     {
         private boolean shutdown = false;
-        
-        
+
+
         MonitorTask()
         {
             this(false);
         }
-        
-        
+
+
         MonitorTask(final boolean shutdown)
         {
             this.shutdown = false;
         }
-        
-        
+
+
         public void run()
         {
             try
@@ -249,7 +253,7 @@ public class MulticastDNSCache extends Cache implements Closeable
                 {
                     return;
                 }
-                
+
                 try
                 {
                     cacheMonitor.begin();
@@ -257,18 +261,17 @@ public class MulticastDNSCache extends Cache implements Closeable
                 {
                     if (mdnsVerbose)
                     {
-                        System.err.println(e.getMessage());
-                        e.printStackTrace(System.err);
+                        log.error(e.getMessage(), e);
                     }
                 }
-                
+
                 Object[] sets;
                 synchronized (MulticastDNSCache.this)
                 {
                     Collection values = dataCopy.values();
                     sets = values.toArray(new Object[values.size()]);
                 }
-                
+
                 for (int index = 0; index < sets.length; index++ )
                 {
                     try
@@ -294,12 +297,11 @@ public class MulticastDNSCache extends Cache implements Closeable
                     {
                         if (mdnsVerbose)
                         {
-                            System.err.println(e.getMessage());
-                            e.printStackTrace(System.err);
+                            log.error(e.getMessage(), e);
                         }
                     }
                 }
-                
+
                 try
                 {
                     cacheMonitor.end();
@@ -307,18 +309,16 @@ public class MulticastDNSCache extends Cache implements Closeable
                 {
                     if (mdnsVerbose)
                     {
-                        System.err.println(e.getMessage());
-                        e.printStackTrace(System.err);
+                        log.error(e.getMessage(), e);
                     }
                 }
             } catch (Throwable e)
             {
-                System.err.println(e.getMessage());
-                e.printStackTrace(System.err);
+                log.error(e.getMessage(), e);
             }
         }
-        
-        
+
+
         private void processElement(final ElementHelper element)
         {
             try
@@ -326,7 +326,7 @@ public class MulticastDNSCache extends Cache implements Closeable
                 if (element.getElement() instanceof RRset)
                 {
                     RRset rrs = (RRset) element.getElement();
-                    
+
                     if (shutdown)
                     {
                         Record[] records = MulticastDNSUtils.extractRecords(rrs);
@@ -338,7 +338,7 @@ public class MulticastDNSCache extends Cache implements Closeable
                             }
                         }
                     }
-                    
+
                     CacheMonitor cacheMonitor = getCacheMonitor();
                     int expiresIn = element.getExpiresIn();
                     if ((expiresIn <= 0) || (rrs.getTTL() <= 0))
@@ -350,18 +350,17 @@ public class MulticastDNSCache extends Cache implements Closeable
                     }
                 } else
                 {
-                    System.err.println("Element is an unexpected type \"" + (element.getElement() != null ? element.getElement().getClass().getName() : "null") + "\"");
+                    log.error("Element is an unexpected type \"" + (element.getElement() != null ? element.getElement().getClass().getName() : "null") + "\"");
                 }
             } catch (Exception e)
             {
-                System.err.println(e.getMessage());
-                e.printStackTrace(System.err);
+                log.error(e.getMessage(), e);
             }
         }
     }
-    
+
     protected final static MulticastDNSCache DEFAULT_MDNS_CACHE;
-    
+
     static
     {
         MulticastDNSCache temp = null;
@@ -373,44 +372,41 @@ public class MulticastDNSCache extends Cache implements Closeable
             } catch (IOException e)
             {
                 temp = new MulticastDNSCache();
-                
+
                 if (Options.check("mdns_verbose") || Options.check("verbose"))
                 {
-                    System.err.println("Error loading default cache values.");
-                    e.printStackTrace(System.err);
+                    log.error("Error loading default cache values.", e);
                 }
             }
         } catch (NoSuchFieldException e)
         {
-            System.err.println("Unrecoverable Error: The base " + Cache.class + " class does not implement required fields!");
-            e.printStackTrace();
+            log.error("Unrecoverable Error: The base " + Cache.class + " class does not implement required fields!", e);
         } catch (NoSuchMethodException e)
         {
-            System.err.println("Unrecoverable Error: The base " + Cache.class + " class does not implement required methods!");
-            e.printStackTrace();
+            log.error("Unrecoverable Error: The base " + Cache.class + " class does not implement required methods!", e);
         }
-        
+
         DEFAULT_MDNS_CACHE = temp;
     }
-    
+
     private CacheMonitor cacheMonitor = null;
-    
+
     private LinkedHashMap dataCopy;
-    
+
     private Field dataField = null;
-    
+
     private Method findElement = null;
-    
+
     private Method removeElement = null;
-    
+
     private boolean mdnsVerbose;
-    
-    
+
+
     /**
      * Creates an empty Cache for class IN.
-     * 
+     *
      * @throws NoSuchFieldException
-     * 
+     *
      * @see DClass
      */
     public MulticastDNSCache()
@@ -419,11 +415,11 @@ public class MulticastDNSCache extends Cache implements Closeable
         super();
         populateReflectedFields();
     }
-    
-    
+
+
     /**
      * Creates an empty Cache
-     * 
+     *
      * @param dclass The DNS class of this cache
      * @throws NoSuchFieldException
      * @see DClass
@@ -434,12 +430,12 @@ public class MulticastDNSCache extends Cache implements Closeable
         super(dclass);
         populateReflectedFields();
     }
-    
-    
+
+
     /**
      * Creates a Cache which initially contains all records in the specified
      * file.
-     * 
+     *
      * @throws IOException
      * @throws IllegalAccessException
      * @throws NoSuchFieldException
@@ -452,11 +448,11 @@ public class MulticastDNSCache extends Cache implements Closeable
         super(file);
         populateReflectedFields();
     }
-    
-    
+
+
     /**
      * Initializes a new mDNSCahce with the records from the provided Cache.
-     * 
+     *
      * @param cache The Cache to use to populate this mDNSCache.
      * @throws NoSuchFieldException if the "data" field does not exist in either Cache
      * @throws IllegalAccessException if the "data" field could not be accessed in either Cache
@@ -465,33 +461,33 @@ public class MulticastDNSCache extends Cache implements Closeable
     throws NoSuchFieldException, NoSuchMethodException, IllegalAccessException
     {
         this();
-        
+
         Field field = cache.getClass().getDeclaredField("data");
         field.setAccessible(true);
         Object cacheData = field.get(cache);
-        
+
         field = super.getClass().getDeclaredField("data");
         field.setAccessible(true);
         field.set(this, cacheData);
-        
+
         populateReflectedFields();
     }
-    
-    
+
+
     @Override
     public synchronized void addRecord(final Record r, final int cred, final Object o)
     {
         super.addRecord(r, cred, o);
     }
-    
-    
+
+
     @Override
     public synchronized void addRRset(final RRset rrset, final int cred)
     {
         super.addRRset(rrset, cred);
     }
-    
-    
+
+
     public synchronized void close()
     throws IOException
     {
@@ -505,25 +501,25 @@ public class MulticastDNSCache extends Cache implements Closeable
             }
         }
     }
-    
-    
+
+
     /**
      * Gets the CacheMonitor used to monitor cache data.
-     * 
+     *
      * @return monitor the CacheMonitor
      */
     public CacheMonitor getCacheMonitor()
     {
         return cacheMonitor;
     }
-    
-    
+
+
     public Message queryCache(final Message query)
     {
         return queryCache(query, Credibility.ANY);
     }
-    
-    
+
+
     public Message queryCache(final Message query, final int credibility)
     {
         if (query.getHeader().getOpcode() == Opcode.UPDATE)
@@ -531,15 +527,15 @@ public class MulticastDNSCache extends Cache implements Closeable
             Message message = new Message(query.getHeader().getID());
             Header header = message.getHeader();
             header.setRcode(Rcode.NXDOMAIN);
-            
+
             Stack stack = new Stack();
-            
+
             Record[] updates = MulticastDNSUtils.extractRecords(query, Section.UPDATE);
             for (Record update : updates)
             {
                 stack.push(update.getName());
             }
-            
+
             while (!stack.isEmpty())
             {
                 Name name = (Name) stack.pop();
@@ -549,7 +545,7 @@ public class MulticastDNSCache extends Cache implements Closeable
                     header.setRcode(Rcode.NOERROR);
                     header.setOpcode(Opcode.QUERY);
                     header.setFlag(Flags.QR);
-                    
+
                     Record[] answers = MulticastDNSUtils.extractRecords(response.answers());
                     for (Record answer : answers)
                     {
@@ -557,7 +553,7 @@ public class MulticastDNSCache extends Cache implements Closeable
                         {
                             message.addRecord(answer, Section.ANSWER);
                         }
-                        
+
                         Name target = MulticastDNSUtils.getTargetFromRecord(answer);
                         if (target != null)
                         {
@@ -566,21 +562,21 @@ public class MulticastDNSCache extends Cache implements Closeable
                     }
                 }
             }
-            
+
             return message;
         } else
         {
             Message message = new Message(query.getHeader().getID());
             Header header = message.getHeader();
             header.setRcode(Rcode.NXDOMAIN);
-            
+
             Record[] questions = MulticastDNSUtils.extractRecords(query, Section.QUESTION);
             if ((questions != null) && (questions.length > 0))
             {
                 for (Record question : questions)
                 {
                     message.addRecord(question, Section.QUESTION);
-                    
+
                     MulticastDNSUtils.setDClassForRecord(question, question.getDClass() & 0x7FFF);
                     SetResponse response = lookupRecords(question.getName(), Type.ANY, credibility);
                     if (response.isSuccessful())
@@ -588,7 +584,7 @@ public class MulticastDNSCache extends Cache implements Closeable
                         header.setRcode(Rcode.NOERROR);
                         header.setOpcode(Opcode.QUERY);
                         header.setFlag(Flags.QR);
-                        
+
                         Record[] answers = MulticastDNSUtils.extractRecords(response.answers());
                         if ((answers != null) && (answers.length > 0))
                         {
@@ -598,7 +594,7 @@ public class MulticastDNSCache extends Cache implements Closeable
                                 {
                                     message.addRecord(answer, Section.ANSWER);
                                 }
-                                
+
                                 Record[] additionalAnswers = queryCacheForAdditionalRecords(answer, credibility);
                                 for (Record additionalAnswer : additionalAnswers)
                                 {
@@ -612,16 +608,16 @@ public class MulticastDNSCache extends Cache implements Closeable
                     }
                 }
             }
-            
+
             return message;
         }
     }
-    
-    
+
+
     /**
      * Acquires additional information from the cache so that the returned results have all the
      * information required in 1 query.
-     * 
+     *
      * @param name The root name to begin the query sequence
      * @return The list of additional records
      */
@@ -631,9 +627,9 @@ public class MulticastDNSCache extends Cache implements Closeable
         {
             return MulticastDNSUtils.EMPTY_RECORDS;
         }
-        
+
         LinkedList results = new LinkedList();
-        
+
         Name target = MulticastDNSUtils.getTargetFromRecord(record);
         if (target != null)
         {
@@ -652,11 +648,11 @@ public class MulticastDNSCache extends Cache implements Closeable
                 }
             }
         }
-        
+
         return (Record[]) results.toArray(new Record[results.size()]);
     }
-    
-    
+
+
     public void removeElementCopy(final Name name, final int type)
     {
         try
@@ -665,19 +661,15 @@ public class MulticastDNSCache extends Cache implements Closeable
                                                      new Integer(type)});
         } catch (Exception e)
         {
-            System.err.println(e.getMessage());
-            if (mdnsVerbose)
-            {
-                e.printStackTrace(System.err);
-            }
+            log.error(e.getMessage(), e);
         }
     }
-    
-    
+
+
     /**
      * Sets the CacheMonitor used to monitor cache data. Can be used to
      * implement Cache record refreshing.
-     * 
+     *
      * @param monitor the CacheMonitor
      */
     public synchronized void setCacheMonitor(final CacheMonitor monitor)
@@ -687,11 +679,11 @@ public class MulticastDNSCache extends Cache implements Closeable
             cacheMonitor = monitor;
         }
     }
-    
-    
+
+
     /**
      * Removes an RRset from the Cache.
-     * 
+     *
      * @param rrset The RRset to be removed
      * @see RRset
      */
@@ -699,11 +691,11 @@ public class MulticastDNSCache extends Cache implements Closeable
     {
         removeElementCopy(rrset.getName(), rrset.getType());
     }
-    
-    
+
+
     /**
      * Updates an RRset in the Cache. Typically used to update expirey.
-     * 
+     *
      * @param rrset The RRset to be updated
      * @throws InvocationTargetException
      * @throws IllegalAccessException
@@ -742,8 +734,8 @@ public class MulticastDNSCache extends Cache implements Closeable
             addRecord(record, cred, this);
         }
     }
-    
-    
+
+
     @Override
     protected void finalize()
     throws Throwable
@@ -754,17 +746,16 @@ public class MulticastDNSCache extends Cache implements Closeable
             super.finalize();
         } catch (Throwable t)
         {
-            System.err.println(t.getMessage());
-            t.printStackTrace(System.err);
+            log.error("finalize error", t);
         }
     }
-    
-    
+
+
     /**
      * !!! Work around to access private methods in Cache superclass
      * !!! This method will be removed when the super class is made extensible (private members made protected)
      * Populates the local copies of the needed private super fields.
-     * 
+     *
      * @throws SecurityException
      * @throws NoSuchFieldException
      * @throws NoSuchMethodException
@@ -775,31 +766,30 @@ public class MulticastDNSCache extends Cache implements Closeable
     throws NoSuchFieldException, NoSuchMethodException
     {
         mdnsVerbose = Options.check("mdns_verbose") || Options.check("dns_verbose") || Options.check("verbose");
-        
+
         Executors.scheduledExecutor.scheduleAtFixedRate(new MonitorTask(), 1, 1, TimeUnit.SECONDS);
-        
+
         Class clazz = getClass().getSuperclass();
-        
+
         try
         {
             dataField = findField(clazz, "data");
-            
+
             AccessibleObject.setAccessible(new AccessibleObject[] {dataField}, true);
-            
+
             dataCopy = (LinkedHashMap) dataField.get(this);
         } catch (NoSuchFieldException e)
         {
-            System.err.println(e.getMessage());
+            log.error(e.getMessage(), e);
             throw e;
         } catch (Exception e)
         {
             if (mdnsVerbose)
             {
-                System.err.println(e.getMessage());
-                e.printStackTrace(System.err);
+                log.error(e.getMessage(), e);
             }
         }
-        
+
         try
         {
             findElement = findMethod(clazz, "findElement", new Class[] {Name.class,
@@ -807,24 +797,23 @@ public class MulticastDNSCache extends Cache implements Closeable
                                                                         Integer.TYPE});
             removeElement = findMethod(clazz, "removeElement", new Class[] {Name.class,
                                                                             Integer.TYPE});
-            
+
             AccessibleObject.setAccessible(new AccessibleObject[] {findElement,
                                                                    removeElement}, true);
         } catch (NoSuchMethodException e)
         {
-            System.err.println(e.getMessage());
+            log.error(e.getMessage(), e);
             throw e;
         } catch (Exception e)
         {
             if (mdnsVerbose)
             {
-                System.err.println(e.getMessage());
-                e.printStackTrace(System.err);
+                log.error(e.getMessage(), e);
             }
         }
     }
-    
-    
+
+
     private ElementHelper findElementCopy(final Name name, final int type, final int minCred)
     throws IllegalArgumentException, IllegalAccessException,
     InvocationTargetException
@@ -832,28 +821,24 @@ public class MulticastDNSCache extends Cache implements Closeable
         Object o = findElement.invoke(this, new Object[] {name,
                                                           new Integer(type),
                                                           new Integer(minCred)});
-        
+
         try
         {
             return o == null ? (ElementHelper) null : new ElementHelper(this, o);
         } catch (Exception e)
         {
-            System.err.println(e.getMessage());
-            if (mdnsVerbose)
-            {
-                e.printStackTrace(System.err);
-            }
+            log.error("findElementCopy exception", e);
             return null;
         }
     }
-    
-    
+
+
     private static Field findField(final Class clazz, final String name)
     throws NoSuchFieldException
     {
         Class clz = clazz;
         Field field = null;
-        
+
         while ((clz != null) && (field == null))
         {
             try
@@ -864,25 +849,25 @@ public class MulticastDNSCache extends Cache implements Closeable
             } catch (NoSuchFieldException e)
             {
             }
-            
+
             if (field != null)
             {
                 return field;
             }
-            
+
             clz = clz.getSuperclass();
         }
-        
+
         throw new NoSuchFieldException("Field \"" + name + "\" does not exist in class \"" + clazz.getName() + "\".");
     }
-    
-    
+
+
     private static Method findMethod(final Class clazz, final String name, final Class[] parameters)
     throws NoSuchMethodException
     {
         Class clz = clazz;
         Method method = null;
-        
+
         while ((clz != null) && (method == null))
         {
             try
@@ -893,33 +878,33 @@ public class MulticastDNSCache extends Cache implements Closeable
             } catch (NoSuchMethodException e)
             {
             }
-            
+
             if (method != null)
             {
                 return method;
             }
-            
+
             clz = clz.getSuperclass();
         }
-        
+
         throw new NoSuchMethodException("Method \"" + name + "\" does not exist in class \"" + clazz.getName() + "\".");
     }
-    
-    
+
+
     private static int limitExpire(long ttl, final long maxttl)
     {
         if ((maxttl >= 0) && (maxttl < ttl))
         {
             ttl = maxttl;
         }
-        
+
         long expire = (System.currentTimeMillis() / 1000) + ttl;
-        
+
         if ((expire < 0) || (expire > Integer.MAX_VALUE))
         {
             return Integer.MAX_VALUE;
         }
-        
+
         return (int) expire;
     }
 }

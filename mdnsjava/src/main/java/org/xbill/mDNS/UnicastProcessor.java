@@ -13,52 +13,56 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xbill.DNS.Options;
 
 @SuppressWarnings({"unchecked", "rawtypes"})
 public class UnicastProcessor extends NetworkProcessor
 {
+	private static final Logger log = LoggerFactory.getLogger(UnicastProcessor.class);
+
     protected static interface SocketListener
     {
         public void dataReceived();
     }
-    
-    
+
+
     protected abstract static class UnicastRunner implements Runnable
     {
         SocketChannel channel;
-        
-        
+
+
         UnicastRunner(final SocketChannel channel)
         {
             this.channel = channel;
         }
     }
-    
+
     protected ServerSocketChannel server;
-    
+
     protected Selector selector;
-    
+
     protected Map clients = new HashMap();
-    
+
     protected Map readBuffers = new HashMap();
-    
-    
+
+
     public UnicastProcessor(final InetAddress ifaceAddress, final InetAddress address, final int port, final PacketListener listener)
     throws IOException
     {
         super(ifaceAddress, address, port, listener);
-        
+
         server = ServerSocketChannel.open();
         server.socket().setReuseAddress(true);
         server.socket().bind(new InetSocketAddress(address, port));
         server.configureBlocking(false);
-        
+
         selector = Selector.open();
         server.register(selector, SelectionKey.OP_ACCEPT);
     }
-    
-    
+
+
     @Override
     public void close()
     throws IOException
@@ -67,8 +71,8 @@ public class UnicastProcessor extends NetworkProcessor
         server.socket().close();
         server.close();
     }
-    
-    
+
+
     public void run()
     {
         try
@@ -78,14 +82,14 @@ public class UnicastProcessor extends NetworkProcessor
                 /*
                  * TODO: For mDNS responses only accept requests from devices that are on the
                  * same subnet as the interface.
-                 * 
+                 *
                  * (I & M) == (P & M)
-                 * 
+                 *
                  * where:
                  * I is the address of the interface receiving the packet.
                  * M is the subnet mask of the interface receiving the packet.
                  * P is the source address of the packet.
-                 * 
+                 *
                  * TODO: Set IP TTL to 255
                  */
                 if (selector.select(Querier.DEFAULT_RESPONSE_WAIT_TIME) > 0)
@@ -94,7 +98,7 @@ public class UnicastProcessor extends NetworkProcessor
                     {
                         SelectionKey key = (SelectionKey) i.next();
                         i.remove();
-                        
+
                         if (key.isValid())
                         {
                             try
@@ -103,7 +107,7 @@ public class UnicastProcessor extends NetworkProcessor
                                 {
                                     ((SocketChannel) key.channel()).finishConnect();
                                 }
-                                
+
                                 if (key.isAcceptable())
                                 {
                                     // Accept connection
@@ -114,30 +118,30 @@ public class UnicastProcessor extends NetworkProcessor
                                     client.register(selector, SelectionKey.OP_READ);
                                     clients.put(key, client);
                                 }
-                                
+
                                 if (key.isReadable())
                                 {
                                     SocketChannel channel = (SocketChannel) key.channel();
-                                    
+
                                     ByteBuffer readBuffer = (ByteBuffer) readBuffers.get(key);
                                     if (readBuffer == null)
                                     {
                                         readBuffer = ByteBuffer.allocateDirect(mtu);
                                         readBuffers.put(key, readBuffer);
                                     }
-                                    
+
                                     if (channel.read(readBuffer) == -1)
                                     {
                                         throw new IOException("Read on closed key");
                                     } else
                                     {
                                         // readBuffer.flip();
-                                        
-                                        System.out.println("Received message from " + channel.socket().getRemoteSocketAddress());
+
+                                        log.info("Received message from " + channel.socket().getRemoteSocketAddress());
                                         // threadPool.execute(new PacketDispatchRunner(new Packet(datagram), listeners));
                                     }
                                 }
-                                
+
                                 if (key.isWritable())
                                 {
                                     // Write data.
@@ -154,17 +158,17 @@ public class UnicastProcessor extends NetworkProcessor
                         }
                     }
                 }
-                
+
                 /*
                  * final SocketChannel channel = server.accept(); if (channel !=
                  * null) { threadPool.execute(new UnicastRunner(channel) {
-                 * 
+                 *
                  * @Override public void run() { try { ByteBuffer buffer =
                  * ByteBuffer.allocateDirect(mtu); int bytesRead =
                  * channel.read(buffer); if (bytesRead > 0) { } } catch
                  * (IOException e) { if (!(!server.isOpen() && exit)) { if
                  * (Options.check("mdns_verbose")) {
-                 * System.err.println("Error receiving data from \"" + address +
+                 * log.error("Error receiving data from \"" + address +
                  * "\" - " + e.getMessage()); e.printStackTrace(System.err); } }
                  * } } });
                  */
@@ -173,30 +177,27 @@ public class UnicastProcessor extends NetworkProcessor
         {
             if (Options.check("mdns_verbose"))
             {
-                System.err.println("Security issue receiving data from \"" + address + "\" - " + e.getMessage());
-                e.printStackTrace(System.err);
+                log.error("Security issue receiving data from \"" + address + "\"", e);
             }
         } catch (Exception e)
         {
-            System.err.println("!!!!! Error receiving data from \"" + address + "\" - " + e.getMessage() + " !!!!!");
-            e.printStackTrace(System.err);
+            log.error("!!!!! Error receiving data from \"" + address + "\"", e);
             if (server.isOpen() && !exit)
             {
                 if (Options.check("mdns_verbose"))
                 {
-                    System.err.println("Error receiving data from \"" + address + "\" - " + e.getMessage());
-                    e.printStackTrace(System.err);
+                    log.error("Error receiving data from \"" + address + "\"", e);
                 }
             }
         }
     }
-    
-    
+
+
     @Override
     public void send(final byte[] data)
     throws IOException
     {
         // TODO Auto-generated method stub
-        
+
     }
 }

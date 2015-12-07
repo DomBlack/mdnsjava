@@ -10,6 +10,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xbill.DNS.AAAARecord;
 import org.xbill.DNS.ARecord;
 import org.xbill.DNS.DClass;
@@ -30,11 +32,13 @@ import org.xbill.DNS.Type;
 @SuppressWarnings({"unchecked", "rawtypes"})
 public abstract class MulticastDNSLookupBase implements Closeable, Constants
 {
+	private static final Logger log = LoggerFactory.getLogger(MulticastDNSLookupBase.class);
+
     protected static Querier defaultQuerier;
-    
+
     protected static Name[] defaultSearchPath;
-    
-    
+
+
     protected static final Comparator SERVICE_RECORD_SORTER = new Comparator()
     {
         public int compare(final Object o1, final Object o2)
@@ -45,10 +49,10 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
                 {
                     final Record thisRecord = (Record) o1;
                     final Record thatRecord = (Record) o2;
-                    
+
                     final int thisType = thisRecord.getType();
                     final int thatType = thatRecord.getType();
-                    
+
                     switch (thisType)
                     {
                         case Type.SRV:
@@ -104,77 +108,77 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
                             }
                         default:
                             return -1;
-                            
+
                     }
                 }
             }
-            
+
             return -1;
         }
     };
-    
-    
+
+
     protected Name[] names;
-    
-    
+
+
     protected Querier querier;
-    
-    
+
+
     protected Name[] searchPath;
-    
-    
+
+
     protected int type = Type.ANY;
-    
+
     protected Object browseID;
-    
+
     protected int dclass = DClass.ANY;
-    
+
     protected Message[] queries;
-    
+
     protected boolean mdnsVerbose;
-    
+
     public MulticastDNSLookupBase(final Name... names)
     throws IOException
     {
         this(names, Type.ANY, DClass.ANY);
     }
-    
+
     public MulticastDNSLookupBase(final Name[] names, final int type)
     throws IOException
     {
         this(names, Type.ANY, DClass.ANY);
     }
-    
+
     public MulticastDNSLookupBase(final Name[] names, final int type, final int dclass)
     throws IOException
     {
         this();
-        
+
         this.names = names;
         this.type = type;
         this.dclass = dclass;
         buildQueries();
     }
-    
+
     public MulticastDNSLookupBase(final String... names)
     throws IOException
     {
         this(names, Type.ANY, DClass.ANY);
     }
-    
-    
+
+
     public MulticastDNSLookupBase(final String[] names, final int type)
     throws IOException
     {
         this(names, type, DClass.ANY);
     }
-    
-    
+
+
     public MulticastDNSLookupBase(final String[] names, final int type, final int dclass)
     throws IOException
     {
         this();
-        
+
         if ((names != null) && (names.length > 0))
         {
             ArrayList domainNames = new ArrayList();
@@ -189,7 +193,7 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
                     {
                         if (mdnsVerbose)
                         {
-                            System.err.println("Error parsing \"" + names[index] + "\" - " + e.getMessage());
+                            log.error("Error parsing \"" + names[index] + "\"", e);
                         }
                     }
                 } else
@@ -203,13 +207,13 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
                         {
                             if (mdnsVerbose)
                             {
-                                System.err.println("Error parsing \"" + (names[index] + "." + searchPath[i]) + "\" - " + e.getMessage());
+                                log.error("Error parsing \"" + (names[index] + "." + searchPath[i]) + "\"", e);
                             }
                         }
                     }
                 }
             }
-            
+
             this.names = (Name[]) domainNames.toArray(new Name[domainNames.size()]);
             this.type = type;
             this.dclass = dclass;
@@ -219,26 +223,26 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
             throw new UnknownHostException("Invalid Name(s) specified!");
         }
     }
-    
-    
+
+
     protected MulticastDNSLookupBase()
     throws IOException
     {
         super();
-        
+
         mdnsVerbose = Options.check("mdns_verbose") || Options.check("verbose");
-        
+
         querier = getDefaultQuerier();
         searchPath = getDefaultSearchPath();
     }
-    
-    
+
+
     protected MulticastDNSLookupBase(final Message message)
     throws IOException
     {
         this();
         queries = new Message[] {(Message) message.clone()};
-        
+
         int type = -1;
         int dclass = -1;
         List list = new ArrayList();
@@ -249,11 +253,11 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
             {
                 list.add(r.getName());
             }
-            
+
             type = type < 0 ? r.getType() : Type.ANY;
             dclass = dclass < 0 ? r.getDClass() : DClass.ANY;
         }
-        
+
         if (list.size() > 0)
         {
             this.type = type;
@@ -261,11 +265,11 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
             names = (Name[]) list.toArray(new Record[list.size()]);
         }
     }
-    
-    
+
+
     /**
      * Adds the name to the list of names to browse
-     * 
+     *
      * @param names Names to add
      */
     public void addNames(final Name[] names)
@@ -280,11 +284,11 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
             buildQueries();
         }
     }
-    
-    
+
+
     /**
      * Adds the name to the list of names to browse
-     * 
+     *
      * @param names Names to add
      * @throws TextParseException If name is invalid
      */
@@ -301,11 +305,11 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
             addNames(newnames);
         }
     }
-    
-    
+
+
     /**
      * Adds a domain to the search path that is used during lookups.
-     * 
+     *
      * @param searchPath Name to add to search path
      */
     public void addSearchPath(final Name[] searchPath)
@@ -320,11 +324,11 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
             buildQueries();
         }
     }
-    
-    
+
+
     /**
      * Adds a domain to the search path that is used during lookups.
-     * 
+     *
      * @param searchPath Name to add to search path
      * @throws TextParseException If name is invalid
      */
@@ -341,34 +345,34 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
             addSearchPath(newnames);
         }
     }
-    
-    
+
+
     public Name[] getNames()
     {
         return names;
     }
-    
-    
+
+
     /**
      * Gets the Responder that is being used for this browse operations.
-     * 
+     *
      * @return The responder
      */
     public synchronized Querier getQuerier()
     {
         return querier;
     }
-    
-    
+
+
     public Name[] getSearchPath()
     {
         return searchPath;
     }
-    
-    
+
+
     /**
      * Sets the names to browse
-     * 
+     *
      * @param names Names to browse
      */
     public void setNames(final Name[] names)
@@ -376,12 +380,14 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
         this.names = names;
         buildQueries();
     }
-    
-    
+
+
     /**
      * Sets the names to browse
-     * 
+     *
      * @param names Names to browse
+	 *
+	 * @throws TextParseException If unable to parse text
      */
     public void setNames(final String[] names)
     throws TextParseException
@@ -398,23 +404,23 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
         }
         setNames(newnames);
     }
-    
-    
+
+
     /**
      * Sets the Responder to be used for this browse operation.
-     * 
+     *
      * @param responder The responder
      */
     public synchronized void setQuerier(final Querier querier)
     {
         this.querier = querier;
     }
-    
-    
+
+
     /**
      * Sets the search path to use when performing this lookup. This overrides
      * the default value.
-     * 
+     *
      * @param domains An array of names containing the search path.
      */
     public void setSearchPath(final Name[] domains)
@@ -422,12 +428,12 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
         searchPath = domains;
         buildQueries();
     }
-    
-    
+
+
     /**
      * Sets the search path to use when performing this lookup. This overrides
      * the default value.
-     * 
+     *
      * @param domains An array of names containing the search path.
      * @throws TextParseException A name in the array is not a valid DNS name.
      */
@@ -446,8 +452,8 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
         }
         setSearchPath(newdomains);
     }
-    
-    
+
+
     protected void buildQueries()
     {
         if ((names != null) && (searchPath != null))
@@ -474,22 +480,21 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
                         {
                             if (mdnsVerbose)
                             {
-                                System.err.println(e.getMessage());
-                                e.printStackTrace(System.err);
+                                log.error(e.getMessage(), e);
                             }
                         }
                     }
                 }
             }
-            
+
             queries = newQueries;
         }
     }
-    
-    
+
+
     /**
      * Gets the mDNS Querier that will be used as the default by future Lookups.
-     * 
+     *
      * @return The default responder.
      */
     public static synchronized Querier getDefaultQuerier()
@@ -501,18 +506,17 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
                 defaultQuerier = new MulticastDNSQuerier(true, true);
             } catch (IOException e)
             {
-                System.err.println(e.getMessage());
-                e.printStackTrace(System.err);
+                log.error(e.getMessage(), e);
             }
         }
-        
+
         return defaultQuerier;
     }
-    
-    
+
+
     /**
      * Gets the search path that will be used as the default by future Lookups.
-     * 
+     *
      * @return The default search path.
      */
     public static synchronized Name[] getDefaultSearchPath()
@@ -533,35 +537,35 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
             }
             System.arraycopy(defaultQuerier.getMulticastDomains(), 0, defaultSearchPath, startPos, defaultQuerier.getMulticastDomains().length);
         }
-        
+
         return defaultSearchPath;
     }
-    
-    
+
+
     /**
      * Sets the default mDNS Querier to be used as the default by future Lookups.
-     * 
+     *
      * @param responder The default responder.
      */
     public static synchronized void setDefaultQuerier(final Querier querier)
     {
         defaultQuerier = querier;
     }
-    
-    
+
+
     /**
      * Sets the search path to be used as the default by future Lookups.
-     * 
+     *
      * @param domains The default search path.
      */
     public static synchronized void setDefaultSearchPath(final Name[] domains)
     {
         defaultSearchPath = domains;
     }
-    
+
     /**
      * Sets the search path that will be used as the default by future Lookups.
-     * 
+     *
      * @param domains The default search path.
      * @throws TextParseException A name in the array is not a valid DNS name.
      */
@@ -580,12 +584,12 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
         }
         defaultSearchPath = newdomains;
     }
-    
-    
+
+
     protected static ServiceInstance[] extractServiceInstances(final Message... messages)
     {
         Record[] records = null;
-        
+
         for (Message message : messages)
         {
             Record[] temp = MulticastDNSUtils.extractRecords(message, Section.AUTHORITY, Section.ANSWER, Section.ADDITIONAL);
@@ -600,15 +604,15 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
                 System.arraycopy(temp, 0, records, records.length, temp.length);
             }
         }
-        
+
         return extractServiceInstances(records);
     }
-    
-    
+
+
     protected static ServiceInstance[] extractServiceInstances(final Record[] records)
     {
         Map services = new HashMap();
-        
+
         ServiceInstance service = null;
         Arrays.sort(records, SERVICE_RECORD_SORTER);
         for (Record record : records)
@@ -622,7 +626,7 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
                         services.put(service.getName(), service);
                     } catch (TextParseException e)
                     {
-                        System.err.println("Error processing SRV record \"" + record.getName() + "\" - " + e.getMessage());
+                        log.error("Error processing SRV record \"" + record.getName() + "\"", e);
                     }
                     break;
                 case Type.PTR:
@@ -690,7 +694,7 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants
             }
             service = null;
         }
-        
+
         return (ServiceInstance[]) services.values().toArray(new ServiceInstance[services.size()]);
     }
 }

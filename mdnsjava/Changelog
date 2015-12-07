@@ -1,3 +1,6 @@
+06/12/2015
+ - Moved logging to SLF4J
+
 04/10/2013
 	- 2.1.5 released
 
@@ -190,7 +193,7 @@
 	- The TSIG verification routines (TSIG.verify,
 	  TSIG.StreamVerifier.verify() now update the Message object with the
 	  status of the verification in addition to returning the status.
-	
+
 6/03/2009
 	- The lists of servers and searchlist entries in ResolverConfig should
 	  not be static.
@@ -425,7 +428,7 @@
 
 5/7/2005
 	- Fix several problems with empty names.
-	  (Matt Rutherford <rutherfo@cs.colorado.edu>)  
+	  (Matt Rutherford <rutherfo@cs.colorado.edu>)
 
 4/23/2005
 	- As per RFC 2181, the maximum allowed TTL value is 0x7FFFFFFF.
@@ -665,7 +668,7 @@
 	  constructors with new versions that properly return exceptions.
 
 12/6/2003
-	- Make the J2SE javadoc link a property in build.xml.  (Ville Skyttä)
+	- Make the J2SE javadoc link a property in build.xml.  (Ville Skyttï¿½)
 
 11/24/2003
 	- Lookup should check that the name, type, and class in the question
@@ -849,7 +852,7 @@
 	- Converting some types of records (TXT, for example) to wire format
 	  could throw an IndexOutOfBoundsException.
 	- TSIG signed UDP queries weren't properly verified by jnamed.
-	- Add a method to render a Message with a specified maximum size - 
+	- Add a method to render a Message with a specified maximum size -
 	  this method will properly truncate large responses and apply
 	  TSIG signatures.
 
@@ -915,7 +918,7 @@
 
 10/6/2002
 	- Fix minor bugs in Name code (Bob Halley <bob.halley@nominum.com>)
-	  
+
 10/1/2002
 	- Memory usage and speed improvements to the TypeMap class.
 
@@ -1148,7 +1151,7 @@
 	  (Christopher Fitch <cfitch@sbti.com>)
 	- Added a routine to build a SIG record based on the results of
 	  a DSA signature (Pasi Eronen <pe@iki.fi>)
-	
+
 8/13/2000
 	- Added 'clear' command to update client
 	- Removed some deprecated code
@@ -1418,21 +1421,21 @@
 5/13/1999
 	- split WorkerThread into WorkerThread and ResolveThread
 
-4/25/1999	
+4/25/1999
 	- moved files to org.xbill.DNS
 	- Cache round-robins RRsets before handing them out
 	- changed the way ExtendedResolver decides when to send queries
 	- various reflection changes
 
-4/21/1999	
+4/21/1999
 	- minor WorkerThread fixes
 
-4/19/1999	
+4/19/1999
 	- 0.9.1 released
 	- WorkerThreads should die after 15 minutes of idle time
 	- Address.getByName/getAllByName handle dotted quad IP addresses
 
-4/18/1999	
+4/18/1999
 	- 0.9 released
 	- Finished javadoc-ing classes in DNS.*
 	- Server should work now

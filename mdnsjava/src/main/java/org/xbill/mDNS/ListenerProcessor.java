@@ -1,5 +1,8 @@
 package org.xbill.mDNS;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
@@ -16,35 +19,37 @@ import java.util.Stack;
  * listeners are registered determines the order by which the listeners are called during event
  * dispatch. A listener may halt the delivery of events to subsequent listeners by throwing a
  * StopDispatchException.
- * 
+ *
  * @author Steve Posick
  */
 @SuppressWarnings("unchecked")
 public class ListenerProcessor<T> implements Closeable
 {
+	private static final Logger log = LoggerFactory.getLogger(ListenerProcessor.class);
+
     public static class StopDispatchException extends Exception
     {
         private static final long serialVersionUID = 201401211841L;
-        
-        
+
+
         public StopDispatchException()
         {
             super();
         }
     }
-    
-    
+
+
     protected static class Dispatcher implements InvocationHandler
     {
         ListenerProcessor<?> processor;
-        
-        
+
+
         protected Dispatcher(final ListenerProcessor<?> processor)
         {
             this.processor = processor;
         }
-        
-        
+
+
         public Object invoke(final Object proxy, final Method method, final Object[] args)
         throws Throwable
         {
@@ -56,13 +61,11 @@ public class ListenerProcessor<T> implements Closeable
                     method.invoke(listener, args);
                 } catch (IllegalArgumentException e)
                 {
-                    System.err.println(e.getMessage());
-                    e.printStackTrace(System.err);
+                    log.error("invoke failure", e);
                     throw e;
                 } catch (IllegalAccessException e)
                 {
-                    System.err.println(e.getMessage());
-                    e.printStackTrace(System.err);
+                    log.error("invoke failure", e);
                     throw e;
                 } catch (InvocationTargetException e)
                 {
@@ -71,29 +74,27 @@ public class ListenerProcessor<T> implements Closeable
                         break;
                     } else
                     {
-                        System.err.println(e.getTargetException().getMessage());
-                        e.getTargetException().printStackTrace(System.err);
+                        log.error(e.getTargetException().getMessage(), e.getTargetException());
                         throw e.getTargetException();
                     }
                 } catch (Exception e)
                 {
-                    System.err.println(e.getMessage());
-                    e.printStackTrace(System.err);
+                    log.error("invoke failure", e);
                     throw e;
                 }
             }
-            
+
             return null;
         }
     }
-    
+
     private final Class<T> iface;
-    
+
     private Object[] listeners = new Object[0];
-    
+
     private T dispatcher;
-    
-    
+
+
     public ListenerProcessor(final Class<T> iface)
     {
         this.iface = iface;
@@ -102,8 +103,8 @@ public class ListenerProcessor<T> implements Closeable
             throw new IllegalArgumentException("\"" + iface.getName() + "\" is not an interface.");
         }
     }
-    
-    
+
+
     public void close()
     throws IOException
     {
@@ -113,8 +114,8 @@ public class ListenerProcessor<T> implements Closeable
         }
         this.listeners = new Object[0];
     }
-    
-    
+
+
     public T getDispatcher()
     {
         if (dispatcher == null)
@@ -123,8 +124,8 @@ public class ListenerProcessor<T> implements Closeable
         }
         return dispatcher;
     }
-    
-    
+
+
     public synchronized T registerListener(final T listener)
     {
         // Make sure the listener is not null and that it implements the Interface
@@ -139,57 +140,57 @@ public class ListenerProcessor<T> implements Closeable
                     return (T) listeners[index];
                 }
             }
-            
+
             T[] temp = (T[]) Arrays.copyOf(listeners, listeners.length + 1);
             temp[temp.length - 1] = listener;
             this.listeners = temp;
-            
+
             return listener;
         } else
         {
             return null;
         }
     }
-    
-    
+
+
     public synchronized T unregisterListener(final T listener)
     {
         if (listener != null)
         {
             T[] temp = (T[]) Arrays.copyOf(listeners, listeners.length);
-            
+
             // Find listener
             for (int index = 0; index < temp.length; index++ )
             {
                 if ((temp[index] == listener) || temp[index].equals(listener))
                 {
                     Object foundListener = temp[index];
-                    
+
                     // Found listener, delete it and shift remaining listeners back one position.
                     System.arraycopy(temp, index + 1, temp, index, temp.length - index - 1);
                     this.listeners = Arrays.copyOf(temp, temp.length - 1);
-                    
+
                     return (T) foundListener;
                 }
             }
         }
-        
+
         return null;
     }
-    
-    
+
+
     protected Class<?>[] getAllInterfaces(final Class<?> clazz)
     {
         LinkedHashSet<Class<?>> set = new LinkedHashSet<Class<?>>();
         Stack<Class<?>> stack = new Stack<Class<?>>();
-        
+
         stack.push(clazz);
-        
+
         if (clazz.isInterface())
         {
             set.add(clazz);
         }
-        
+
         while (!stack.isEmpty())
         {
             Class<?> cls = stack.pop();
@@ -204,7 +205,7 @@ public class ListenerProcessor<T> implements Closeable
                     }
                 }
             }
-            
+
             Class<?> superClass = cls.getSuperclass();
             if (superClass != null)
             {
@@ -215,7 +216,7 @@ public class ListenerProcessor<T> implements Closeable
                 stack.push(superClass);
             }
         }
-        
+
         return set.toArray(new Class[set.size()]);
     }
 }
